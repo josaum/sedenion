@@ -21,7 +21,15 @@
 use crate::linalg::Mat;
 use crate::sim::{ImuParams, Sample, N};
 use crate::ukf::Ukf;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use sedenion::Sedenion;
+
+fn gaussian(rng: &mut StdRng) -> f64 {
+    let u1: f64 = rng.gen::<f64>().max(1e-12);
+    let u2: f64 = rng.gen::<f64>();
+    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+}
 
 pub struct Config {
     pub dt: f64,
@@ -100,11 +108,21 @@ fn sedenion_zda(mean: &[f64], lambda: f64) -> (Vec<f64>, f32) {
 }
 
 /// Run one estimator over one trajectory. `use_sedenion` selects the variant.
+/// `seed` drives the position-fix measurement noise; pass the *same* seed to the
+/// baseline and sedenion runs of a given trajectory so they see identical fixes.
 /// Returns the per-step horizontal position error (metres).
-pub fn run(samples: &[Sample], p: &ImuParams, cfg: &Config, use_sedenion: bool) -> Vec<f64> {
+pub fn run(
+    samples: &[Sample],
+    p: &ImuParams,
+    cfg: &Config,
+    use_sedenion: bool,
+    seed: u64,
+) -> Vec<f64> {
     let q = process_noise(p, cfg.dt);
     let x0 = vec![0.0; N]; // start at origin, zero velocity, zero bias prior
     let mut ukf = Ukf::new(x0, initial_cov(p));
+    // Separate RNG stream for fix noise, decoupled from the trajectory RNG.
+    let mut fix_rng = StdRng::seed_from_u64(seed ^ 0xF1_F1_F1_F1);
 
     let r_fix = {
         let mut r = Mat::zeros(3, 3);
@@ -131,7 +149,13 @@ pub fn run(samples: &[Sample], p: &ImuParams, cfg: &Config, use_sedenion: bool) 
         if let Some(iv) = cfg.fix_interval {
             if let Some(nf) = next_fix {
                 if s.t >= nf {
-                    let z = [s.truth[0], s.truth[1], s.truth[2]];
+                    // Sampled measurement: truth corrupted by the σ=fix_sigma noise
+                    // the filter's R matrix actually models.
+                    let z = [
+                        s.truth[0] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                        s.truth[1] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                        s.truth[2] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                    ];
                     ukf.update(&z, |x| vec![x[0], x[1], x[2]], &r_fix);
                     next_fix = Some(nf + iv);
                 }

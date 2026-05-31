@@ -77,7 +77,7 @@ fn main() {
             let mut per_seed = Vec::new();
             for seed in 0..seeds {
                 let traj = generate(seed, steps, dt, &params);
-                per_seed.push(run(&traj, &params, &cfg, v.sedenion));
+                per_seed.push(run(&traj, &params, &cfg, v.sedenion, seed));
             }
             print!("{:<14}", v.name);
             for (mi, t) in marker_idx.iter().zip(markers.iter()) {

@@ -53,9 +53,9 @@ Numbers are **horizontal-position RMSE in metres**.
 | SUKF λ=0.00    | 1.4 | 12.0 | 48.8 | 199.0 | 1346.8 |
 | SUKF λ=1.00    | 1.4 | 12.0 | 48.8 | 199.0 | 1346.8 |
 | **Aided (30 s position fix, σ=5 m)** |||||
-| Baseline UKF   | 1.4 | 1.5 | 1.0 | 1.1 | **15.0** |
-| SUKF λ=0.00    | 1.4 | 1.5 | 1.0 | 1.1 | **15.0** |
-| SUKF λ=1.00    | 1.4 | 1.5 | 1.2 | 2.0 | **30.7** |
+| Baseline UKF   | 1.4 | 6.7 | 7.7 | 7.8 | **20.8** |
+| SUKF λ=0.00    | 1.4 | 6.7 | 7.7 | 7.8 | **20.8** |
+| SUKF λ=1.00    | 1.4 | 6.7 | 7.7 | 8.0 | **35.0** |
 
 ### Duffing-nonlinear MEMS (`--duffing`)
 
@@ -65,8 +65,8 @@ Numbers are **horizontal-position RMSE in metres**.
 | Baseline UKF   | 45.2 | 171.8 | 962.5 |
 | SUKF λ=1.00    | 45.2 | 171.8 | 962.5 |
 | **Aided** ||||
-| Baseline UKF   | 0.9 | 1.1 | **13.4** |
-| SUKF λ=1.00    | 1.0 | 1.6 | **17.6** |
+| Baseline UKF   | 7.7 | 7.7 | **19.4** |
+| SUKF λ=1.00    | 7.7 | 7.9 | **23.1** |
 
 ## What the numbers say
 
@@ -80,7 +80,7 @@ Numbers are **horizontal-position RMSE in metres**.
    matrix math".
 
 2. **Once aiding makes the bias observable, the annihilation step actively
-   hurts** — RMSE roughly doubles (15.0 → 30.7 m linear; 13.4 → 17.6 m Duffing).
+   hurts** — RMSE grows (20.8 → 35.0 m linear; 19.4 → 23.1 m Duffing).
    Projecting the bias estimate onto the position direction throws away a
    correctly-estimated quantity.
 
