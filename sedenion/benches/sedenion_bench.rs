@@ -18,6 +18,19 @@ fn bench_sedenion_mul(c: &mut Criterion) {
     });
 }
 
+fn bench_sedenion_square(c: &mut Criterion) {
+    let a = Sedenion::new([
+        1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+        9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+    ]);
+
+    c.bench_function("sedenion_square", |bench| {
+        bench.iter(|| {
+            let _ = black_box(a).square();
+        });
+    });
+}
+
 fn bench_sedenion_pow3(c: &mut Criterion) {
     let a = Sedenion::new([
         1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
@@ -57,5 +70,18 @@ fn bench_sedenion_zda(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_sedenion_mul, bench_sedenion_pow3, bench_sedenion_norm, bench_sedenion_zda);
+fn bench_sedenion_sketch(c: &mut Criterion) {
+    let a = Sedenion::new([
+        1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+        9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+    ]);
+
+    c.bench_function("sedenion_sketch_octonion", |bench| {
+        bench.iter(|| {
+            let _ = black_box(a).sketch_octonion();
+        });
+    });
+}
+
+criterion_group!(benches, bench_sedenion_mul, bench_sedenion_square, bench_sedenion_pow3, bench_sedenion_norm, bench_sedenion_zda, bench_sedenion_sketch);
 criterion_main!(benches);

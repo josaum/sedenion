@@ -1,14 +1,27 @@
 //! Sedenion algebra primitives for representation learning.
 //!
-//! Implements the 16-dimensional Cayley-Dickson algebra with:
-//! - Core arithmetic (add, sub, mul, conj, norm, inverse)
-//! - Zero-divisor detection
+//! Hardware-optimized 16D Cayley-Dickson algebra with:
+//! - 64-byte alignment (one L1 cache line, one AVX-512 register)
+//! - O(N) squaring via the anti-commutativity trick
+//! - Zero-divisor detection and ZDA-Reg
 //! - Power-associative exponentiation
-//! - SIMD-friendly layout (`#[repr(C)] [f64; 16]`)
+//! - Zero-cost subalgebra sketches
 //!
 //! All operations are `#[inline(always)]` for aggressive compiler optimization.
+//! Compile with `RUSTFLAGS="-C target-cpu=native"` for auto-vectorization.
 
 use std::ops::{Add, Sub, Mul, Neg};
+
+// =============================================================================
+// Core Design Decisions
+// =============================================================================
+// 1. f32, not f64: 16 × 4 = 64 bytes = exactly 1 L1 cache line + 1 AVX-512 reg
+// 2. align(64): guarantees zero cache-line straddling, perfect SIMD mapping
+// 3. O(N) squaring: for Z = z0 + V, V^2 = -||V||^2 due to anti-commutativity
+//    of imaginary bases. This makes polynomial predictors essentially free.
+// 4. Explicit unrolled multiplication: paste the 256-term expansion directly
+//    into the operator, letting the register allocator interleave perfectly.
+// 5. Zero-cost sketches: subalgebra projections are just memory slices.
 
 // =============================================================================
 // Quaternion (4D) — base building block
@@ -16,10 +29,10 @@ use std::ops::{Add, Sub, Mul, Neg};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
-pub struct Quaternion([f64; 4]);
+pub struct Quaternion([f32; 4]);
 
 impl Quaternion {
-    pub const fn new(a: f64, b: f64, c: f64, d: f64) -> Self {
+    pub const fn new(a: f32, b: f32, c: f32, d: f32) -> Self {
         Self([a, b, c, d])
     }
 
@@ -27,10 +40,10 @@ impl Quaternion {
     pub const fn one() -> Self { Self([1.0, 0.0, 0.0, 0.0]) }
 
     #[inline(always)]
-    pub fn real(&self) -> f64 { self.0[0] }
+    pub fn real(&self) -> f32 { self.0[0] }
 
     #[inline(always)]
-    pub fn imag(&self) -> [f64; 3] {
+    pub fn imag(&self) -> [f32; 3] {
         [self.0[1], self.0[2], self.0[3]]
     }
 
@@ -40,12 +53,12 @@ impl Quaternion {
     }
 
     #[inline(always)]
-    pub fn norm_sq(&self) -> f64 {
+    pub fn norm_sq(&self) -> f32 {
         self.0[0]*self.0[0] + self.0[1]*self.0[1] + self.0[2]*self.0[2] + self.0[3]*self.0[3]
     }
 
     #[inline(always)]
-    pub fn norm(&self) -> f64 {
+    pub fn norm(&self) -> f32 {
         self.norm_sq().sqrt()
     }
 
@@ -58,7 +71,7 @@ impl Quaternion {
     }
 
     #[inline(always)]
-    pub fn scale(&self, s: f64) -> Self {
+    pub fn scale(&self, s: f32) -> Self {
         Self([self.0[0]*s, self.0[1]*s, self.0[2]*s, self.0[3]*s])
     }
 }
@@ -119,15 +132,15 @@ impl Mul for Quaternion {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
-pub struct Octonion([f64; 8]);
+pub struct Octonion([f32; 8]);
 
 impl Octonion {
-    pub fn new(a: [f64; 8]) -> Self { Self(a) }
+    pub fn new(a: [f32; 8]) -> Self { Self(a) }
     pub const fn zero() -> Self { Self([0.0; 8]) }
     pub fn one() -> Self { Self([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]) }
 
     #[inline(always)]
-    pub fn real(&self) -> f64 { self.0[0] }
+    pub fn real(&self) -> f32 { self.0[0] }
 
     #[inline(always)]
     pub fn as_quaternion_pair(&self) -> (Quaternion, Quaternion) {
@@ -148,12 +161,12 @@ impl Octonion {
     }
 
     #[inline(always)]
-    pub fn norm_sq(&self) -> f64 {
+    pub fn norm_sq(&self) -> f32 {
         self.0.iter().map(|x| x*x).sum()
     }
 
     #[inline(always)]
-    pub fn norm(&self) -> f64 {
+    pub fn norm(&self) -> f32 {
         self.norm_sq().sqrt()
     }
 
@@ -169,7 +182,7 @@ impl Octonion {
     }
 
     #[inline(always)]
-    pub fn scale(&self, s: f64) -> Self {
+    pub fn scale(&self, s: f32) -> Self {
         Self(self.0.map(|x| x * s))
     }
 }
@@ -224,15 +237,15 @@ impl Mul for Octonion {
 }
 
 // =============================================================================
-// Sedenion (16D)
+// Sedenion (16D) — 64-byte aligned, hardware-optimized
 // =============================================================================
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[repr(C)]
-pub struct Sedenion([f64; 16]);
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[repr(C, align(64))]
+pub struct Sedenion([f32; 16]);
 
 impl Sedenion {
-    pub fn new(a: [f64; 16]) -> Self { Self(a) }
+    pub fn new(a: [f32; 16]) -> Self { Self(a) }
     pub const fn zero() -> Self { Self([0.0; 16]) }
     pub fn one() -> Self {
         Self([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -263,13 +276,13 @@ impl Sedenion {
     // -------------------------------------------------------------------------
 
     #[inline(always)]
-    pub fn real(&self) -> f64 { self.0[0] }
+    pub fn real(&self) -> f32 { self.0[0] }
 
     #[inline(always)]
-    pub fn components(&self) -> &[f64; 16] { &self.0 }
+    pub fn components(&self) -> &[f32; 16] { &self.0 }
 
     #[inline(always)]
-    pub fn components_mut(&mut self) -> &mut [f64; 16] { &mut self.0 }
+    pub fn components_mut(&mut self) -> &mut [f32; 16] { &mut self.0 }
 
     // -------------------------------------------------------------------------
     // Core algebra
@@ -282,13 +295,15 @@ impl Sedenion {
         Self(r)
     }
 
+    /// Isotropic norm for LeJEPA SIGReg prior.
+    /// Auto-vectorizes into a SIMD dot-product.
     #[inline(always)]
-    pub fn norm_sq(&self) -> f64 {
-        self.0.iter().map(|x| x*x).sum()
+    pub fn norm_sq(&self) -> f32 {
+        self.0.iter().map(|x| x * x).sum()
     }
 
     #[inline(always)]
-    pub fn norm(&self) -> f64 {
+    pub fn norm(&self) -> f32 {
         self.norm_sq().sqrt()
     }
 
@@ -303,18 +318,43 @@ impl Sedenion {
     }
 
     #[inline(always)]
-    pub fn scale(&self, s: f64) -> Self {
+    pub fn scale(&self, s: f32) -> Self {
         Self(self.0.map(|x| x * s))
     }
 
     /// Scalar division.
     #[inline(always)]
-    pub fn div_scalar(&self, s: f64) -> Self {
+    pub fn div_scalar(&self, s: f32) -> Self {
         self.scale(1.0 / s)
     }
 
     // -------------------------------------------------------------------------
-    // Zero-divisor detection
+    // O(N) squaring — the mathematical hack
+    //
+    // For Z = z0 + V where V is pure-imaginary:
+    //   V^2 = -||V||^2 because cross-terms e_i * e_j + e_j * e_i = 0
+    //   Therefore: Z^2 = (z0^2 - ||V||^2) + 2*z0*V
+    //
+    // This drops 256 multiplications to 1 dot-product + 16 scalar multiplies.
+    // -------------------------------------------------------------------------
+
+    #[inline(always)]
+    pub fn square(&self) -> Self {
+        let z0 = self.0[0];
+        let mut out = [0.0; 16];
+        let mut v_norm_sq = 0.0f32;
+        let two_z0 = 2.0 * z0;
+
+        for i in 1..16 {
+            v_norm_sq += self.0[i] * self.0[i];
+            out[i] = self.0[i] * two_z0;
+        }
+        out[0] = (z0 * z0) - v_norm_sq;
+        Self(out)
+    }
+
+    // -------------------------------------------------------------------------
+    // Zero-divisor detection and ZDA-Reg
     // -------------------------------------------------------------------------
 
     /// A sedenion Z = (A, B) is a zero divisor iff:
@@ -324,21 +364,21 @@ impl Sedenion {
     ///
     /// Returns `(is_zero_divisor, distance_to_manifold)`.
     #[inline(always)]
-    pub fn zero_divisor_status(&self) -> (bool, f64) {
+    pub fn zero_divisor_status(&self) -> (bool, f32) {
         let (a, b) = self.as_octonion_pair();
-        let a_pure = Octonion::new([0.0, a.0[1], a.0[2], a.0[3], a.0[4], a.0[5], a.0[6], a.0[7]]);
-        let b_pure = Octonion::new([0.0, b.0[1], b.0[2], b.0[3], b.0[4], b.0[5], b.0[6], b.0[7]]);
 
         let norm_a = a.norm_sq();
         let norm_b = b.norm_sq();
-        let dot_ab: f64 = a.0.iter().zip(b.0.iter()).map(|(x, y)| x * y).sum();
+        let dot_ab: f32 = a.0.iter().zip(b.0.iter()).map(|(x, y)| x * y).sum();
 
         // Distance to zero-divisor manifold: (||A||^2 - ||B||^2)^2 + (A·B)^2
-        let dist = (norm_a - norm_b).powi(2) + dot_ab.powi(2);
-        let is_zd = (norm_a - norm_b).abs() < 1e-10
-            && dot_ab.abs() < 1e-10
-            && a.real().abs() < 1e-10
-            && b.real().abs() < 1e-10;
+        let diff = norm_a - norm_b;
+        let dist = diff * diff + dot_ab * dot_ab;
+
+        let is_zd = diff.abs() < 1e-6
+            && dot_ab.abs() < 1e-6
+            && a.real().abs() < 1e-6
+            && b.real().abs() < 1e-6;
 
         (is_zd, dist)
     }
@@ -346,9 +386,17 @@ impl Sedenion {
     /// ZDA-Reg loss: penalize proximity to zero-divisor manifold.
     /// This is the key regularization term for Sedenion-LeJEPA.
     #[inline(always)]
-    pub fn zda_loss(&self) -> f64 {
+    pub fn zda_loss(&self) -> f32 {
         let (_, dist) = self.zero_divisor_status();
         dist
+    }
+
+    /// Margin-based ZDA-Reg: ReLU(margin - zda_score).
+    /// Pushes embeddings away from the G_2 null space.
+    #[inline(always)]
+    pub fn zda_margin_loss(&self, margin: f32) -> f32 {
+        let score = self.zda_loss().sqrt();
+        (margin - score).max(0.0)
     }
 
     // -------------------------------------------------------------------------
@@ -369,7 +417,7 @@ impl Sedenion {
         let mut exp = n as u32;
         while exp > 0 {
             if exp & 1 == 1 { result = result * base; }
-            base = base * base;
+            base = base.square();  // O(N) squaring instead of O(N^2) multiply
             exp >>= 1;
         }
         result
@@ -381,10 +429,32 @@ impl Sedenion {
         self.powi(n as i32)
     }
 
-    /// Squaring (faster than generic multiply).
+    // -------------------------------------------------------------------------
+    // Zero-cost subalgebra sketches for Sedenion-SIGReg
+    // -------------------------------------------------------------------------
+
+    /// 8D Octonion sketch: first 8 components (zero-cost slice).
     #[inline(always)]
-    pub fn square(&self) -> Self {
-        *self * *self
+    pub fn sketch_octonion(&self) -> &[f32; 8] {
+        self.0[0..8].try_into().unwrap()
+    }
+
+    /// 4D Quaternion sketch: first 4 components (zero-cost slice).
+    #[inline(always)]
+    pub fn sketch_quaternion(&self) -> &[f32; 4] {
+        self.0[0..4].try_into().unwrap()
+    }
+
+    /// 15D pure-imaginary sketch: all components except the real part.
+    #[inline(always)]
+    pub fn sketch_imaginary(&self) -> &[f32; 15] {
+        self.0[1..16].try_into().unwrap()
+    }
+
+    /// 1D real sketch: just the scalar component.
+    #[inline(always)]
+    pub fn sketch_real(&self) -> f32 {
+        self.0[0]
     }
 }
 
@@ -477,7 +547,7 @@ impl SedenionMatrix {
         let mut rng = thread_rng();
         let data: Vec<Sedenion> = (0..rows*cols)
             .map(|_| {
-                let arr: [f64; 16] = Standard.sample(&mut rng);
+                let arr: [f32; 16] = Standard.sample(&mut rng);
                 Sedenion::new(arr)
             })
             .collect();
@@ -543,12 +613,12 @@ pub fn batch_matvec(
 
 /// Check if a batch of sedenion embeddings is approximately isotropic Gaussian.
 /// Returns the mean and covariance deviation from identity.
-pub fn isotropic_check(batch: &[Sedenion]) -> (f64, f64) {
-    let n = batch.len() as f64;
+pub fn isotropic_check(batch: &[Sedenion]) -> (f32, f32) {
+    let n = batch.len() as f32;
     if n == 0.0 { return (0.0, 0.0); }
 
     // Mean of each component
-    let mut mean = [0.0; 16];
+    let mut mean = [0.0f32; 16];
     for z in batch {
         for i in 0..16 {
             mean[i] += z.0[i];
@@ -557,7 +627,7 @@ pub fn isotropic_check(batch: &[Sedenion]) -> (f64, f64) {
     for i in 0..16 { mean[i] /= n; }
 
     // Component variances
-    let mut var = [0.0; 16];
+    let mut var = [0.0f32; 16];
     for z in batch {
         for i in 0..16 {
             let diff = z.0[i] - mean[i];
@@ -566,19 +636,19 @@ pub fn isotropic_check(batch: &[Sedenion]) -> (f64, f64) {
     }
     for i in 0..16 { var[i] /= n; }
 
-    let mean_dev = mean.iter().map(|m| m.abs()).sum::<f64>() / 16.0;
-    let var_avg = var.iter().sum::<f64>() / 16.0;
-    let var_dev = var.iter().map(|v| (v - var_avg).abs()).sum::<f64>() / 16.0;
+    let mean_dev = mean.iter().map(|m| m.abs()).sum::<f32>() / 16.0;
+    let var_avg = var.iter().sum::<f32>() / 16.0;
+    let var_dev = var.iter().map(|v| (v - var_avg).abs()).sum::<f32>() / 16.0;
 
     (mean_dev, var_dev)
 }
 
 /// 1D random projection sketch for SIGReg.
 /// Projects a batch of sedenions onto a random unit vector in R^16.
-pub fn sketch_projection(batch: &[Sedenion], proj: &[f64; 16]) -> Vec<f64> {
+pub fn sketch_projection(batch: &[Sedenion], proj: &[f32; 16]) -> Vec<f32> {
     batch.iter()
         .map(|z| {
-            z.0.iter().zip(proj.iter()).map(|(a, b)| a * b).sum::<f64>()
+            z.0.iter().zip(proj.iter()).map(|(a, b)| a * b).sum::<f32>()
         })
         .collect()
 }
@@ -590,6 +660,13 @@ pub fn sketch_projection(batch: &[Sedenion], proj: &[f64; 16]) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_alignment() {
+        // Ensure 64-byte alignment for cache-line optimization
+        assert_eq!(std::mem::align_of::<Sedenion>(), 64);
+        assert_eq!(std::mem::size_of::<Sedenion>(), 64);
+    }
 
     #[test]
     fn test_sedenion_mul_identity() {
@@ -615,7 +692,7 @@ mod tests {
 
         let prod = z1 * z2;
         let norm = prod.norm();
-        assert!(norm < 1e-10, "Expected zero product, got norm {}", norm);
+        assert!(norm < 1e-4, "Expected zero product, got norm {}", norm);
     }
 
     #[test]
@@ -626,7 +703,7 @@ mod tests {
         let prod = a * a_inv;
         let one = Sedenion::one();
         for i in 0..16 {
-            assert!((prod.0[i] - one.0[i]).abs() < 1e-10);
+            assert!((prod.0[i] - one.0[i]).abs() < 1e-4);
         }
     }
 
@@ -638,7 +715,45 @@ mod tests {
         let z3_direct = z * z * z;
         let z3_pow = z.powu(3);
         for i in 0..16 {
-            assert!((z3_direct.0[i] - z3_pow.0[i]).abs() < 1e-10);
+            assert!((z3_direct.0[i] - z3_pow.0[i]).abs() < 1e-4);
         }
+    }
+
+    #[test]
+    fn test_o_n_squaring_vs_full_mul() {
+        // Verify that square() == self * self
+        let z = Sedenion::new([2.0, 1.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let sq_fast = z.square();
+        let sq_full = z * z;
+        for i in 0..16 {
+            assert!((sq_fast.0[i] - sq_full.0[i]).abs() < 1e-4,
+                "O(N) squaring mismatch at index {}: fast={} full={}",
+                i, sq_fast.0[i], sq_full.0[i]);
+        }
+    }
+
+    #[test]
+    fn test_zda_margin() {
+        let z = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let loss = z.zda_margin_loss(1.0);
+        assert!(loss >= 0.0);
+    }
+
+    #[test]
+    fn test_sketches_are_zero_cost() {
+        let z = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let q = z.sketch_quaternion();
+        assert_eq!(q[0], 1.0);
+        assert_eq!(q[1], 2.0);
+
+        let o = z.sketch_octonion();
+        assert_eq!(o[7], 8.0);
+
+        let v = z.sketch_imaginary();
+        assert_eq!(v[0], 2.0);  // component 1 of original
+        assert_eq!(v[14], 16.0); // component 15 of original
     }
 }
