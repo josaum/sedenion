@@ -1,2 +1,3 @@
-target/
+/target
 bakeoff_results.csv
+data/

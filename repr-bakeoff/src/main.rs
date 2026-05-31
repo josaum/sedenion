@@ -1,9 +1,11 @@
 //! repr-bakeoff harness — sedenion-structured projector + ZDA-Reg vs. a matched
 //! real-valued baseline, plus a ZDA strength sweep.
 //!
-//!   cargo run --release -p repr-bakeoff
+//!   cargo run --release -p repr-bakeoff             # synthetic data
+//!   cargo run --release -p repr-bakeoff -- mnist    # real images (needs data/, see fetch_mnist.sh)
 
-use repr_bakeoff::data::generate;
+use repr_bakeoff::data::{generate, Dataset};
+use repr_bakeoff::mnist;
 use repr_bakeoff::model::{Encoder, LossWeights};
 use repr_bakeoff::train::{train_and_eval, Result};
 
@@ -11,48 +13,49 @@ fn avg<F: Fn(&Result) -> f64>(rs: &[Result], f: F) -> f64 {
     rs.iter().map(|r| f(r)).sum::<f64>() / rs.len() as f64
 }
 
-fn main() {
-    let seeds = 8u64;
-    let n_classes = 10;
-    let n_train = 400;
-    let n_test = 400;
-    let epochs = 250;
-    let lr = 0.5f32;
+struct Arm {
+    name: &'static str,
+    sed: bool,
+    zda: f32,
+}
 
-    // VICReg weights (shared). ZDA weight set per-arm.
-    let base = |zda: f32| LossWeights { inv: 25.0, var: 25.0, cov: 1.0, zda };
-
-    println!("repr-bakeoff — sedenion projector (+ZDA-Reg) vs. matched real baseline");
-    println!(
-        "seeds={seeds}  classes={n_classes}  train={n_train}  test={n_test}  epochs={epochs}  (chance = {:.1}%)\n",
-        100.0 / n_classes as f64
-    );
-
-    struct Arm {
-        name: &'static str,
-        sed: bool,
-        zda: f32,
-    }
+fn run(
+    title: &str,
+    n_classes: usize,
+    epochs: usize,
+    lr: f32,
+    seeds: u64,
+    make_data: impl Fn(u64) -> Dataset,
+) {
+    let base = |zda: f32| LossWeights { inv: 25.0, var: 25.0, cov: 4.0, zda };
     let arms = [
         Arm { name: "Real baseline (VICReg)", sed: false, zda: 0.0 },
         Arm { name: "Sedenion  λ_zda=0.0   ", sed: true, zda: 0.0 },
         Arm { name: "Sedenion  λ_zda=0.1   ", sed: true, zda: 0.1 },
         Arm { name: "Sedenion  λ_zda=1.0   ", sed: true, zda: 1.0 },
-        Arm { name: "Sedenion  λ_zda=5.0   ", sed: true, zda: 5.0 },
+        Arm { name: "Sedenion  λ_zda=2.0   ", sed: true, zda: 2.0 },
     ];
 
+    println!("\n=== {title} ===");
+    println!(
+        "seeds={seeds}  classes={n_classes}  epochs={epochs}  (chance = {:.1}%)",
+        100.0 / n_classes as f64
+    );
     println!(
         "{:<24}  {:>6}  {:>9}  {:>8}  {:>9}  {:>8}",
         "arm", "params", "probe_acc", "eff_rank", "isotropy↓", "min_std"
     );
-
-    for a in &arms {
-        let mut rs = Vec::new();
-        for seed in 0..seeds {
-            let data = generate(seed, n_classes, n_train, n_test);
+    // Build each seed's dataset once and reuse it across all arms.
+    let mut per_arm: Vec<Vec<Result>> = (0..arms.len()).map(|_| Vec::new()).collect();
+    for seed in 0..seeds {
+        let data = make_data(seed);
+        for (ai, a) in arms.iter().enumerate() {
             let enc = if a.sed { Encoder::new_sed(seed) } else { Encoder::new_real(seed) };
-            rs.push(train_and_eval(enc, &data, &base(a.zda), epochs, lr));
+            per_arm[ai].push(train_and_eval(enc, &data, &base(a.zda), epochs, lr));
         }
+    }
+    for (ai, a) in arms.iter().enumerate() {
+        let rs = &per_arm[ai];
         println!(
             "{:<24}  {:>6}  {:>8.1}%  {:>8.2}  {:>9.4}  {:>8.4}",
             a.name,
@@ -63,12 +66,27 @@ fn main() {
             avg(&rs, |r| r.collapse.min_std),
         );
     }
+}
+
+fn main() {
+    let mnist_mode = std::env::args().any(|a| a == "mnist");
+
+    if mnist_mode {
+        let raw = mnist::load_raw("data");
+        run("REAL DATA — MNIST (frozen random backbone 784→256)", 10, 300, 0.15, 3, |seed| {
+            mnist::build(&raw, seed, 2000, 2000)
+        });
+    } else {
+        run("SYNTHETIC — 10-class two-view", 10, 300, 0.15, 4, |seed| {
+            generate(seed, 10, 400, 400)
+        });
+    }
 
     println!("\nRead it as:");
     println!("  probe_acc  — downstream linear-probe accuracy (higher = more useful representation).");
     println!("  eff_rank   — effective rank of the embedding covariance (16 = full, low = collapse).");
-    println!("  isotropy↓  — distance from an isotropic covariance (0 = isotropic; SIGReg wants this small).");
+    println!("  isotropy↓  — distance from isotropic covariance (0 = isotropic; SIGReg wants this small).");
     println!("  min_std    — smallest per-axis std (→0 = a dead/collapsed axis).");
     println!("\nKey question: does λ_zda > 0 improve anything, or does it raise isotropy↓");
-    println!("(fighting the very isotropy objective) without helping probe_acc?");
+    println!("(fighting the isotropy objective) without helping probe_acc?");
 }

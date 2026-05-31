@@ -96,7 +96,16 @@ pub fn sym_eigenvalues(a_in: &[f64], n: usize) -> Vec<f64> {
             }
         }
     }
-    let mut eig: Vec<f64> = (0..n).map(|i| a[i * n + i]).collect();
-    eig.sort_by(|x, y| y.partial_cmp(x).unwrap());
+    let mut eig: Vec<f64> = (0..n)
+        .map(|i| {
+            let v = a[i * n + i];
+            if v.is_finite() {
+                v
+            } else {
+                0.0
+            }
+        })
+        .collect();
+    eig.sort_by(|x, y| y.partial_cmp(x).unwrap_or(std::cmp::Ordering::Equal));
     eig
 }

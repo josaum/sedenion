@@ -6,5 +6,6 @@
 pub mod data;
 pub mod linalg;
 pub mod metrics;
+pub mod mnist;
 pub mod model;
 pub mod train;
