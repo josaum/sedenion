@@ -129,6 +129,77 @@ pub fn cholesky(a: &Mat) -> Mat {
     }
 }
 
+/// Eigendecomposition of a symmetric matrix via the cyclic Jacobi method.
+/// Returns `(eigenvalues, eigenvectors)` where eigenvector `k` is column `k`
+/// of the returned matrix. Robust and exact enough for the small (≤32) matrices
+/// used here. Eigenvalues are not sorted.
+pub fn jacobi_eigen_symmetric(a: &Mat) -> (Vec<f64>, Mat) {
+    assert_eq!(a.rows, a.cols);
+    let n = a.rows;
+    let mut m = a.clone();
+    let mut v = Mat::identity(n);
+    for _sweep in 0..100 {
+        // off-diagonal Frobenius norm
+        let mut off = 0.0;
+        for p in 0..n {
+            for q in (p + 1)..n {
+                off += m.get(p, q) * m.get(p, q);
+            }
+        }
+        if off.sqrt() < 1e-14 {
+            break;
+        }
+        for p in 0..n {
+            for q in (p + 1)..n {
+                let apq = m.get(p, q);
+                if apq.abs() < 1e-300 {
+                    continue;
+                }
+                let app = m.get(p, p);
+                let aqq = m.get(q, q);
+                let theta = 0.5 * (aqq - app) / apq;
+                let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+                let c = 1.0 / (t * t + 1.0).sqrt();
+                let s = t * c;
+                // Apply rotation to rows/cols p,q of m.
+                for k in 0..n {
+                    let mkp = m.get(k, p);
+                    let mkq = m.get(k, q);
+                    m.set(k, p, c * mkp - s * mkq);
+                    m.set(k, q, s * mkp + c * mkq);
+                }
+                for k in 0..n {
+                    let mpk = m.get(p, k);
+                    let mqk = m.get(q, k);
+                    m.set(p, k, c * mpk - s * mqk);
+                    m.set(q, k, s * mpk + c * mqk);
+                }
+                // Accumulate eigenvectors.
+                for k in 0..n {
+                    let vkp = v.get(k, p);
+                    let vkq = v.get(k, q);
+                    v.set(k, p, c * vkp - s * vkq);
+                    v.set(k, q, s * vkp + c * vkq);
+                }
+            }
+        }
+    }
+    let eig = (0..n).map(|i| m.get(i, i)).collect();
+    (eig, v)
+}
+
+/// Singular values of a (possibly non-square) matrix, descending, via the
+/// eigenvalues of `AᵀA`.
+pub fn singular_values(a: &Mat) -> Vec<f64> {
+    let ata = a.transpose().matmul(a);
+    let (mut eig, _) = jacobi_eigen_symmetric(&ata);
+    for e in eig.iter_mut() {
+        *e = e.max(0.0).sqrt();
+    }
+    eig.sort_by(|x, y| y.partial_cmp(x).unwrap());
+    eig
+}
+
 /// Solve A X = B for X given A (n×n) and B (n×m), via LU with partial pivoting.
 pub fn solve(a: &Mat, b: &Mat) -> Mat {
     assert_eq!(a.rows, a.cols);

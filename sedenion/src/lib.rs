@@ -456,6 +456,46 @@ impl Sedenion {
     pub fn sketch_real(&self) -> f32 {
         self.0[0]
     }
+
+    // -------------------------------------------------------------------------
+    // Left / right multiplication operators (the "Cayley-Dickson routing tensor")
+    // -------------------------------------------------------------------------
+
+    /// Left-multiplication operator `L_a` as a 16×16 row-major matrix such that
+    /// `L_a · b == a · b` for every sedenion `b`. Column `j` is `a · e_j`, so the
+    /// matrix inherits the crate's Cayley-Dickson convention by construction.
+    ///
+    /// This is the linear representation of the (nonlinear, non-associative)
+    /// product: it lets a filter linearize, propagate covariance, and take
+    /// matrix exponentials `exp(L_a · dt)` in the ordinary associative matrix
+    /// algebra. Non-associativity survives only as `L_{ab} != L_a · L_b`.
+    pub fn left_mul_matrix(&self) -> [[f32; 16]; 16] {
+        let mut m = [[0.0f32; 16]; 16];
+        for j in 0..16 {
+            let mut e = [0.0f32; 16];
+            e[j] = 1.0;
+            let col = *self * Sedenion(e); // a · e_j
+            for i in 0..16 {
+                m[i][j] = col.0[i];
+            }
+        }
+        m
+    }
+
+    /// Right-multiplication operator `R_a` as a 16×16 row-major matrix such that
+    /// `R_a · b == b · a` for every sedenion `b`. Column `j` is `e_j · a`.
+    pub fn right_mul_matrix(&self) -> [[f32; 16]; 16] {
+        let mut m = [[0.0f32; 16]; 16];
+        for j in 0..16 {
+            let mut e = [0.0f32; 16];
+            e[j] = 1.0;
+            let col = Sedenion(e) * *self; // e_j · a
+            for i in 0..16 {
+                m[i][j] = col.0[i];
+            }
+        }
+        m
+    }
 }
 
 impl Add for Sedenion {
@@ -755,5 +795,109 @@ mod tests {
         let v = z.sketch_imaginary();
         assert_eq!(v[0], 2.0);  // component 1 of original
         assert_eq!(v[14], 16.0); // component 15 of original
+    }
+
+    fn rand_sed(seed: u64) -> Sedenion {
+        // Cheap deterministic LCG so the test has no rand dependency.
+        let mut s = seed.wrapping_mul(2654435761).wrapping_add(1);
+        let mut c = [0.0f32; 16];
+        for v in c.iter_mut() {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            *v = ((s >> 33) as f32 / (1u64 << 31) as f32) * 2.0 - 1.0;
+        }
+        Sedenion::new(c)
+    }
+
+    fn matvec(m: &[[f32; 16]; 16], x: &Sedenion) -> Sedenion {
+        let mut out = [0.0f32; 16];
+        for i in 0..16 {
+            for j in 0..16 {
+                out[i] += m[i][j] * x.0[j];
+            }
+        }
+        Sedenion::new(out)
+    }
+
+    #[test]
+    fn test_left_mul_matrix_matches_product() {
+        // L_a · b must equal a · b for arbitrary a, b.
+        for seed in 0..16 {
+            let a = rand_sed(seed);
+            let b = rand_sed(seed + 100);
+            let la = a.left_mul_matrix();
+            let lhs = matvec(&la, &b);
+            let rhs = a * b;
+            for i in 0..16 {
+                assert!((lhs.0[i] - rhs.0[i]).abs() < 1e-5, "L_a mismatch at {i}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_right_mul_matrix_matches_product() {
+        // R_a · b must equal b · a for arbitrary a, b.
+        for seed in 0..16 {
+            let a = rand_sed(seed);
+            let b = rand_sed(seed + 200);
+            let ra = a.right_mul_matrix();
+            let lhs = matvec(&ra, &b);
+            let rhs = b * a;
+            for i in 0..16 {
+                assert!((lhs.0[i] - rhs.0[i]).abs() < 1e-5, "R_a mismatch at {i}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_left_mul_is_not_homomorphism() {
+        // The entire content of non-associativity: L_{ab} != L_a L_b in general.
+        let a = rand_sed(3);
+        let b = rand_sed(9);
+        let lab = (a * b).left_mul_matrix();
+        let la = a.left_mul_matrix();
+        let lb = b.left_mul_matrix();
+        // (L_a L_b)
+        let mut prod = [[0.0f32; 16]; 16];
+        for i in 0..16 {
+            for k in 0..16 {
+                for j in 0..16 {
+                    prod[i][j] += la[i][k] * lb[k][j];
+                }
+            }
+        }
+        let mut max_diff = 0.0f32;
+        for i in 0..16 {
+            for j in 0..16 {
+                max_diff = max_diff.max((lab[i][j] - prod[i][j]).abs());
+            }
+        }
+        assert!(max_diff > 1e-3, "expected non-associativity, got L_ab == L_a L_b");
+    }
+
+    #[test]
+    fn test_adjoint_equals_conjugate() {
+        // Cayley-Dickson identity: <a x, y> = <x, conj(a) y>, i.e. L_a^T = L_{conj a}.
+        let a = rand_sed(5);
+        let la = a.left_mul_matrix();
+        let lac = a.conj().left_mul_matrix();
+        for i in 0..16 {
+            for j in 0..16 {
+                assert!((la[j][i] - lac[i][j]).abs() < 1e-5, "adjoint identity fails");
+            }
+        }
+    }
+
+    #[test]
+    fn test_pure_imaginary_generates_skew() {
+        // For pure-imaginary a, L_a is skew-symmetric => exp(L_a t) in SO(16).
+        let mut c = rand_sed(8).0;
+        c[0] = 0.0; // kill the real part
+        let a = Sedenion::new(c);
+        let la = a.left_mul_matrix();
+        for i in 0..16 {
+            for j in 0..16 {
+                assert!((la[i][j] + la[j][i]).abs() < 1e-5, "L_a not skew at ({i},{j})");
+            }
+        }
     }
 }

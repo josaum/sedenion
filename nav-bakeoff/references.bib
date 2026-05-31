@@ -1,0 +1,225 @@
+% references.bib — companion bibliography for PAPER.md
+% ---------------------------------------------------------------------------
+% These entries map the works cited in prose to well-established primary
+% sources. A few attributions in the original draft were generic (e.g. specific
+% MEMS vibration-rectification measurements) or uncertain (the exact author of
+% the sedenion zero-divisor / G2 result); those are mapped here to the closest
+% canonical reference and flagged with a NOTE. Verify author/venue/volume/pages
+% and add DOIs against the originals before submission — volume/page fields are
+% deliberately omitted where not certain rather than guessed.
+% ---------------------------------------------------------------------------
+
+% === Strapdown INS & state estimation ===================================
+
+@book{titterton2004strapdown,
+  author    = {Titterton, David H. and Weston, John L.},
+  title     = {Strapdown Inertial Navigation Technology},
+  edition   = {2nd},
+  publisher = {The Institution of Engineering and Technology (IET)},
+  year      = {2004}
+}
+
+@book{groves2013principles,
+  author    = {Groves, Paul D.},
+  title     = {Principles of {GNSS}, Inertial, and Multisensor Integrated Navigation Systems},
+  edition   = {2nd},
+  publisher = {Artech House},
+  year      = {2013}
+}
+
+@article{markley2003attitude,
+  author  = {Markley, F. Landis},
+  title   = {Attitude Error Representations for {Kalman} Filtering},
+  journal = {Journal of Guidance, Control, and Dynamics},
+  year    = {2003}
+}
+
+@article{crassidis2003unscented,
+  author  = {Crassidis, John L. and Markley, F. Landis},
+  title   = {Unscented Filtering for Spacecraft Attitude Estimation},
+  journal = {Journal of Guidance, Control, and Dynamics},
+  year    = {2003}
+}
+
+@article{barrau2017invariant,
+  author  = {Barrau, Axel and Bonnabel, Silv\`ere},
+  title   = {The Invariant Extended {Kalman} Filter as a Stable Observer},
+  journal = {IEEE Transactions on Automatic Control},
+  year    = {2017}
+}
+
+@inproceedings{brossard2020ukfm,
+  author    = {Brossard, Martin and Barrau, Axel and Bonnabel, Silv\`ere},
+  title     = {A Code for Unscented {Kalman} Filtering on Manifolds ({UKF-M})},
+  booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
+  year      = {2020}
+}
+
+@article{sola2018micro,
+  author  = {Sol\`a, Joan and Deray, J\'er\'emie and Atchuthan, Dinesh},
+  title   = {A Micro {Lie} Theory for State Estimation in Robotics},
+  journal = {arXiv preprint arXiv:1812.01537},
+  year    = {2018}
+}
+
+@article{forster2017onmanifold,
+  author  = {Forster, Christian and Carlone, Luca and Dellaert, Frank and Scaramuzza, Davide},
+  title   = {On-Manifold Preintegration for Real-Time Visual--Inertial Odometry},
+  journal = {IEEE Transactions on Robotics},
+  year    = {2017}
+}
+
+@article{foxlin2005pedestrian,
+  author  = {Foxlin, Eric},
+  title   = {Pedestrian Tracking with Shoe-Mounted Inertial Sensors},
+  journal = {IEEE Computer Graphics and Applications},
+  year    = {2005}
+}
+
+% === Hypercomplex algebras ==============================================
+
+@book{conway2003quaternions,
+  author    = {Conway, John H. and Smith, Derek A.},
+  title     = {On Quaternions and Octonions: Their Geometry, Arithmetic, and Symmetry},
+  publisher = {A K Peters},
+  year      = {2003},
+  note      = {Includes the Hurwitz theorem on normed division algebras}
+}
+
+@article{baez2002octonions,
+  author  = {Baez, John C.},
+  title   = {The Octonions},
+  journal = {Bulletin of the American Mathematical Society},
+  volume  = {39},
+  number  = {2},
+  pages   = {145--205},
+  year    = {2002}
+}
+
+@book{schafer1966nonassociative,
+  author    = {Schafer, Richard D.},
+  title     = {An Introduction to Nonassociative Algebras},
+  publisher = {Academic Press},
+  year      = {1966}
+}
+
+@book{okubo1995octonion,
+  author    = {Okubo, Susumu},
+  title     = {Introduction to Octonion and Other Non-Associative Algebras in Physics},
+  publisher = {Cambridge University Press},
+  year      = {1995}
+}
+
+@article{cawagas2004sedenion,
+  author  = {Cawagas, Raoul E.},
+  title   = {On the Structure and Zero Divisors of the {Cayley--Dickson} Sedenion Algebra},
+  journal = {Discussiones Mathematicae -- General Algebra and Applications},
+  year    = {2004}
+}
+
+@article{imaeda2000sedenions,
+  author  = {Imaeda, Kazuko and Imaeda, Masayoshi},
+  title   = {Sedenions: Algebra and Analysis},
+  journal = {Applied Mathematics and Computation},
+  year    = {2000}
+}
+
+@article{moreno1998zero,
+  author  = {Moreno, Guillermo},
+  title   = {The Zero Divisors of the {Cayley--Dickson} Algebras over the Real Numbers},
+  journal = {Bolet\'in de la Sociedad Matem\'atica Mexicana (3)},
+  year    = {1998},
+  note    = {Canonical source for the zero-divisor structure and its G_2 connection; the draft attributed this result to ``Reggiani'' -- verify intended citation}
+}
+
+@article{biss2008large,
+  author  = {Biss, Daniel K. and Dugger, Daniel and Isaksen, Daniel C.},
+  title   = {Large Annihilators in {Cayley--Dickson} Algebras},
+  journal = {Communications in Algebra},
+  year    = {2008}
+}
+
+% === Dual quaternions / SE(3) ===========================================
+
+@phdthesis{goddard1997pose,
+  author = {Goddard, James S.},
+  title  = {Pose and Motion Estimation from Vision Using Dual Quaternion-Based Extended {Kalman} Filtering},
+  school = {University of Tennessee, Knoxville},
+  year   = {1997}
+}
+
+@article{kavan2008geometric,
+  author  = {Kavan, Ladislav and Collins, Steven and {\v Z}\'ara, Ji\v{r}\'i and O'Sullivan, Carol},
+  title   = {Geometric Skinning with Approximate Dual Quaternion Blending},
+  journal = {ACM Transactions on Graphics},
+  year    = {2008}
+}
+
+@inproceedings{srivatsan2016estimating,
+  author    = {Srivatsan, Rangaprasad Arun and Rosen, Gillian T. and Mohamed, Feroze Naina and Choset, Howie},
+  title     = {Estimating {SE(3)} Elements Using a Dual-Quaternion-Based Linear {Kalman} Filter},
+  booktitle = {Robotics: Science and Systems (RSS)},
+  year      = {2016}
+}
+
+@techreport{blanco2010tutorial,
+  author      = {Blanco-Claraco, Jos\'e-Luis},
+  title       = {A Tutorial on {SE(3)} Transformation Parameterizations and On-Manifold Optimization},
+  institution = {University of M\'alaga},
+  year        = {2010},
+  note        = {Revised 2021}
+}
+
+% === MEMS IMU error physics =============================================
+
+@book{acar2009mems,
+  author    = {Acar, Cenk and Shkel, Andrei M.},
+  title     = {{MEMS} Vibratory Gyroscopes: Structural Approaches to Improve Robustness},
+  publisher = {Springer},
+  year      = {2009},
+  note      = {Reference for nonlinear (Duffing) drive/sense dynamics and quadrature}
+}
+
+@article{leland2005mechanical,
+  author  = {Leland, Robert P.},
+  title   = {Mechanical-Thermal Noise in {MEMS} Gyroscopes},
+  journal = {IEEE Sensors Journal},
+  year    = {2005}
+}
+
+@article{lifshitz2000thermoelastic,
+  author  = {Lifshitz, Ron and Roukes, Michael L.},
+  title   = {Thermoelastic Damping in Micro- and Nanomechanical Systems},
+  journal = {Physical Review B},
+  volume  = {61},
+  number  = {8},
+  pages   = {5600--5609},
+  year    = {2000}
+}
+
+@article{elsheimy2020inertial,
+  author  = {El-Sheimy, Naser and Youssef, Ahmed},
+  title   = {Inertial Sensors Technologies for Navigation Applications: State of the Art and Future Trends},
+  journal = {Satellite Navigation},
+  year    = {2020}
+}
+
+% NOTE: the draft's specific vibration-rectification figures (10--100 deg/h per
+% g^2) and the Prikhodko/Seok/Zhang/Cho citations are representative of the MEMS
+% literature; replace with the exact measurements used before submission.
+
+% === Learned / bilinear dynamics ========================================
+
+@article{brunton2016koopman,
+  author  = {Brunton, Steven L. and Brunton, Bingni W. and Proctor, Joshua L. and Kutz, J. Nathan},
+  title   = {Koopman Invariant Subspaces and Finite Linear Representations of Nonlinear Dynamical Systems for Control},
+  journal = {PLOS ONE},
+  year    = {2016}
+}
+
+@article{korda2018linear,
+  author  = {Korda, Milan and Mezi\'c, Igor},
+  title   = {Linear Predictors for Nonlinear Dynamical Systems: {Koopman} Operator Meets Model Predictive Control},
+  journal = {Automatica},
+  year    = {2018}
+}
