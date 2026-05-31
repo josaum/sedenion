@@ -1,0 +1,13 @@
+[package]
+name = "nav-bakeoff"
+version = "0.1.0"
+edition = "2021"
+description = "Head-to-head bake-off: standard UKF vs. Sedenion-UKF (TESSERACT-BR) on a MEMS dead-reckoning problem."
+
+[dependencies]
+sedenion = { path = "../sedenion" }
+rand = "0.8"
+
+[[bin]]
+name = "nav-bakeoff"
+path = "src/main.rs"
