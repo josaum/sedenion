@@ -77,9 +77,10 @@ S³ × ℝ¹² abstraction.
 **1.1.2 MEMS IMU error physics.** Three phenomena are particularly problematic.
 *Thermo-mechanical coupling:* silicon's elastic modulus varies at ≈ −60 ppm/K, so
 temperature gradients across the die create coupled drift in both scale factor and
-bias that no scalar temperature-compensation model captures. *Duffing
+bias that no scalar temperature-compensation model captures [@leland2005mechanical;
+@lifshitz2000thermoelastic; @elsheimy2020inertial]. *Duffing
 nonlinearity:* the drive and sense modes of a MEMS vibratory gyroscope follow a
-Duffing oscillator with cubic stiffness,
+Duffing oscillator with cubic stiffness [@acar2009mems],
 
 ```
 ẍ + 2ζω₀ẋ + ω₀²x + α_D x³ = f_d(t),
@@ -95,7 +96,8 @@ squared and bias walk rate.
 
 **1.1.3 The accuracy plateau.** For consumer-grade MEMS in pure dead reckoning,
 position drift from a constant accelerometer bias grows as t² (and gyro-bias
-coupling adds a t³ term). Aiding — ZUPT, VIO, terrain-relative navigation — suppresses
+coupling adds a t³ term). Aiding — ZUPT [@foxlin2005pedestrian], VIO
+[@forster2017onmanifold], terrain-relative navigation — suppresses
 this to linear or sub-linear drift, but the residual aided error is often dominated
 by the cross-domain couplings above. The central question of this paper is whether
 sedenion algebra can serve as a representation reflecting that structure without
@@ -167,7 +169,8 @@ discusses scope. §9 concludes. Appendix A maps claims to code.
 ### 2.1 Strapdown Inertial Navigation and State Estimation
 
 **Quaternion kinematics and the transport equation on S³.** The canonical state
-space is S³ × ℝ¹². The quaternion kinematic equation `q̇ = ½ q ⊗ ω_ib^b` governs
+space is S³ × ℝ¹² [@titterton2004strapdown; @groves2013principles]. The quaternion
+kinematic equation `q̇ = ½ q ⊗ ω_ib^b` governs
 rigid-body attitude and preserves ‖q‖ = 1 when integrated with norm correction or
 via the exponential map `exp_q : so(3) → S³`. The navigation-frame velocity follows
 the transport equation
@@ -178,18 +181,22 @@ v̇ⁿ = C_b^n fᵇ − (2 ω_ie^n + ω_en^n) × vⁿ + g_lⁿ,                 
 
 whose coefficient 2 on the Earth-rate term and frame-dependent transport rate
 ω_en^n encode specific physical assumptions about rotating frames — not algebraic
-identities. Quaternion estimation differs fundamentally from attitude estimation on
+identities [@markley2003attitude]. Quaternion estimation differs fundamentally from
+attitude estimation on
 SO(3) because of the double cover S³ ↠ SO(3); sigma-point filters on the quaternion
-manifold outperform additive formulations when attitude deviation is large.
+manifold outperform additive formulations when attitude deviation is large
+[@crassidis2003unscented].
 
 **Error-state (multiplicative) EKF/UKF.** The multiplicative filter keeps a nominal
 state and estimates a small error `δx = (δθ, δv, δr, δb_g, δb_a) ∈ ℝ¹⁵` in the
-tangent space, with `q⁺ = q̄ ⊗ exp_q(δθ/2)` and additive updates elsewhere. The
+tangent space, with `q⁺ = q̄ ⊗ exp_q(δθ/2)` and additive updates elsewhere
+[@markley2003attitude; @sola2018micro]. The
 Invariant EKF, exploiting Lie-group symmetry, has trajectory-independent
-convergence guarantees. Any alternative algebraic formulation must either recover
-these guarantees or empirically justify their loss.
+convergence guarantees [@barrau2017invariant]. Any alternative algebraic formulation
+must either recover these guarantees or empirically justify their loss.
 
-**UKF on Manifolds (UKF-M).** UKF-M separates the state manifold M from tangent
+**UKF on Manifolds (UKF-M).** UKF-M [@brossard2020ukfm] separates the state manifold
+M from tangent
 operations: sigma points are sampled in the Lie algebra, propagated, and retracted
 via a user-specified retraction. It is the de facto benchmark. It requires a
 manifold with a well-defined exponential map; sedenion algebra lacks this (the unit
@@ -198,7 +205,8 @@ instantiate the UKF-M abstraction.
 
 ### 2.2 Hypercomplex Algebras in Navigation and Physics
 
-**Quaternions** ℍ are the canonical success: unit quaternions form a compact Lie
+**Quaternions** ℍ are the canonical success [@conway2003quaternions]: unit
+quaternions form a compact Lie
 group double-covering SO(3); for pure quaternions `u♯v♯ = (−uᵀv, u×v)♯`,
 simultaneously the dot and cross products. They are associative and a division
 algebra. Every navigation-grade attitude estimator exploits associativity (rotation
@@ -207,17 +215,21 @@ composition), invertibility (error-state definition), or the Lie-group structure
 
 **Dual quaternions** ℍ_d represent SE(3) pose with two degrees of redundancy and,
 crucially, retain associativity and a clear Lie-group structure — properties
-sedenions lack.
+sedenions lack [@goddard1997pose; @kavan2008geometric; @srivatsan2016estimating;
+@blanco2010tutorial].
 
-**Octonions** 𝕆 are the largest normed division algebra (Hurwitz). Despite rich
+**Octonions** 𝕆 are the largest normed division algebra (Hurwitz)
+[@conway2003quaternions; @baez2002octonions]. Despite rich
 mathematical structure, no satisfactory octonionic mechanics exists: nonassociativity
-alone obstructs a consistent Hilbert-space/operator formulation. Even with no zero
+alone obstructs a consistent Hilbert-space/operator formulation
+[@okubo1995octonion; @schafer1966nonassociative]. Even with no zero
 divisors, nonassociativity suffices to block direct application. Sedenions inherit
 this and add zero divisors.
 
 **Sedenions** 𝕊 contain subalgebras isomorphic to ℝ, ℂ, ℍ, 𝕆 and a quasi-octonion
 algebra carrying the zero divisors; there are 84 standard zero-divisor pairs in the
-canonical basis. The zero-divisor set is isometric to the exceptional Lie group G₂.
+canonical basis [@cawagas2004sedenion; @imaeda2000sedenions]. The zero-divisor set is
+isometric to the exceptional Lie group G₂ [@moreno1998zero; @biss2008large].
 When a sedenion `a` approaches a zero divisor, `L_a` becomes singular and `ax = b`
 loses unique solutions. Sedenions exhibit asymmetric associativity and retain only
 power-associativity. Prior claims that they "naturally encode" navigation dynamics
@@ -227,13 +239,15 @@ confuse Cayley-Dickson bilinear terms with frame-dependent physical couplings.
 
 **Duffing nonlinearity and vibration rectification.** The sense-axis dynamics obey
 `m ẍ + c ẋ + k₁x + k₃x³ = F_drive + F_Coriolis + F_vibration`, with k₃
-temperature-dependent. Measured vibration-rectification coefficients of 10–100
+temperature-dependent [@acar2009mems]. Measured vibration-rectification coefficients
+of 10–100
 deg/h per g² are reported in consumer MEMS; high-frequency vibration converts to
 low-frequency bias through the cubic nonlinearity.
 
 **Thermo-mechanical coupling.** Bias temperature sensitivity follows
 `Δb_g(T) = α_{g1}ΔT + α_{g2}(ΔT)² + β_g ∇T`, with thermal time constants spanning
-die (~0.5–5 s), package (~30–300 s), and system (~100–1000 s) scales.
+die (~0.5–5 s), package (~30–300 s), and system (~100–1000 s) scales
+[@leland2005mechanical; @lifshitz2000thermoelastic; @elsheimy2020inertial].
 
 **Extended-state estimators** augment the classical state with thermal and Duffing
 states. No unified algebraic framework couples these domains automatically; whether
@@ -269,10 +283,13 @@ condition-number monitoring for safety.
 ```
 
 `*` octonion conjugation, real unit e₀ = (1,0), sedenion conjugate
-`(a,b)* = (a*, −b)`. A sedenion is `x = Σ_{i=0}^{15} x_i e_i`, with Euclidean norm
+`(a,b)* = (a*, −b)` [@schafer1966nonassociative; @baez2002octonions]. A sedenion is
+`x = Σ_{i=0}^{15} x_i e_i`, with Euclidean norm
 `|x| = (Σ x_i²)^{1/2}`. Multiplication is *nicely normed* (`xx* = |x|² e₀`), so every
 nonzero sedenion has inverse `x⁻¹ = x*/|x|²`; but the norm is **not** multiplicative
-— nonzero `x, y` with `xy = 0` exist (§3.4), so 𝕊 is not a division algebra.
+(the Hurwitz theorem [@conway2003quaternions] permits a multiplicative norm only up
+to dimension 8) — nonzero `x, y` with `xy = 0` exist (§3.4), so 𝕊 is not a division
+algebra.
 
 **Property comparison.**
 
@@ -338,8 +355,8 @@ the full S¹⁵ sphere, but — because 𝕊 is not a group — not any physical
 ```
 
 (`cargo test test_zero_divisor` checks exactly this.) The zero-divisor set is a
-positive-measure 21-dimensional submanifold of the 32-dimensional product space —
-pervasive, not pathological.
+positive-measure 21-dimensional submanifold of the 32-dimensional product space
+[@moreno1998zero; @biss2008large; @cawagas2004sedenion] — pervasive, not pathological.
 
 **Proposition 3 (rank deficiency).** If `a` is a left zero divisor, `rank(L_a) < 16`.
 *Proof.* `L_a b = 0` with `b ≠ 0` gives a nontrivial kernel; rank-nullity. ∎ For
@@ -722,7 +739,8 @@ INS with a classical UKF outperforms a sedenion-embedded INS without vision by
 orders of magnitude. Observability theory predicts this.
 
 **Sedenions may find use in learned dynamics.** As a *constrained bilinear ansatz*
-for data-driven (Koopman-style) dynamics, `L_a` is parameterized by 16 numbers, and
+for data-driven (Koopman-style) dynamics [@brunton2016koopman; @korda2018linear],
+`L_a` is parameterized by 16 numbers, and
 the reachable template space `span{L_{e_k}, R_{e_k}}` has numerically measured
 **dimension 31** — more parsimonious than an unconstrained 256-entry bilinear map.
 The learning problem: given trajectories and controls, learn Φ_θ and Ω_ψ so that
@@ -760,7 +778,8 @@ for algebraic pathologies, and be benchmarked against an established baseline.
 
 ### 9.3 Future Work
 
-Data-driven discovery of bilinear coupling operators (Koopman lifting with the
+Data-driven discovery of bilinear coupling operators (Koopman lifting
+[@brunton2016koopman; @korda2018linear] with the
 Cayley-Dickson constraint as a regularizer, ρ as metric); hardware-in-the-loop
 validation; and a systematic survey of alternative 16-dimensional algebras
 (split-octonions, bioctonions, composition algebras) for any structure achieving
@@ -781,8 +800,20 @@ interchangeable.
 | λ = 0 bit-identical to baseline; noise-free < 1 mm/100 s | §7.1 | `sukf_lambda_zero_equals_baseline`, `noise_free_baseline_does_not_drift` |
 | κ(L_a): 1.0 nominal, ∞ at zero divisor | §6.4 | `operator_diagnostics` in `bilinear-probe` |
 
-*Note on references.* The literature cited in prose (UKF-M; Invariant EKF;
-quaternion/dual-quaternion estimation; octonion physics surveys; sedenion
-subalgebra and G₂ zero-divisor results; MEMS Duffing/VRE and thermal models) is
-genuine but is not yet assembled into a numbered bibliography; a BibTeX file should
-accompany a submission version.
+*Note on references.* In-text citations use pandoc keys (`[@key]`) resolved against
+[`references.bib`](references.bib). Render a numbered/cited PDF or HTML with:
+
+```bash
+pandoc PAPER.md --citeproc --bibliography=references.bib -o PAPER.pdf
+```
+
+The bibliography maps each cited work to a canonical primary source; a few draft
+attributions are flagged in `references.bib` (notably the zero-divisor/G₂ result,
+mapped to Moreno 1998, and the representative MEMS Duffing/VRE measurements) and
+should be verified, with DOIs and volume/page numbers added, before submission.
+
+## References
+
+::: {#refs}
+<!-- pandoc --citeproc inserts the formatted reference list here. -->
+:::
