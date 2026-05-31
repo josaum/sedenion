@@ -1,11 +1,12 @@
 //! The two encoder arms and the self-supervised loss.
 //!
-//! Both arms map a 64-D input to a 16-D embedding with a single learnable layer,
-//! so any difference is attributable to the layer's *structure*:
+//! Both arms map an `INPUT`-D input to a 16-D embedding with a single learnable
+//! layer, so any difference is attributable to the layer's *structure*:
 //!
-//! * `Real`     — a dense 16×64 matrix (1024 weights).
-//! * `Sedenion` — 4 sedenion weights `W[i]`, embedding `z = Σ_i W[i]·x[i] + b`
-//!   (4×16 = 64 weights, **16× fewer**). Forward uses the Cayley–Dickson product;
+//! * `Real`     — a dense 16×INPUT matrix.
+//! * `Sedenion` — `NF = INPUT/16` sedenion weights `W[i]`, embedding
+//!   `z = Σ_i W[i]·x[i] + b` (NF×16 weights, **16× fewer** than the dense matrix).
+//!   Forward uses the Cayley–Dickson product;
 //!   the exact backward uses the right-multiplication operator, since `W·x` is
 //!   linear in `W` with Jacobian `R_x`, so `∂L/∂W[i] = R_{x[i]}ᵀ g`.
 //!
@@ -14,12 +15,12 @@
 //! term is the principled anti-collapse / isotropy driver; ZDA-Reg is the term
 //! under test.
 
-use crate::data::{EMB, INPUT};
+use crate::data::{EMB, INPUT, NF};
 use sedenion::Sedenion;
 
-fn split4(x: &[f32; INPUT]) -> [Sedenion; 4] {
-    let mut out = [Sedenion::zero(); 4];
-    for i in 0..4 {
+fn split_feats(x: &[f32; INPUT]) -> [Sedenion; NF] {
+    let mut out = [Sedenion::new([0.0; 16]); NF];
+    for i in 0..NF {
         let mut c = [0.0f32; 16];
         c.copy_from_slice(&x[i * 16..(i + 1) * 16]);
         out[i] = Sedenion::new(c);
@@ -40,7 +41,7 @@ fn matt_vec(m: &[[f32; 16]; 16], v: &[f32; 16]) -> [f32; 16] {
 
 pub enum Encoder {
     Real { w: Vec<f32>, b: [f32; EMB], gw: Vec<f32>, gb: [f32; EMB] },
-    Sed { w: [[f32; 16]; 4], b: [f32; 16], gw: [[f32; 16]; 4], gb: [f32; 16] },
+    Sed { w: [[f32; 16]; NF], b: [f32; 16], gw: [[f32; 16]; NF], gb: [f32; 16] },
 }
 
 impl Encoder {
@@ -59,13 +60,13 @@ impl Encoder {
             s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
             ((s >> 33) as f32 / (1u64 << 31) as f32 - 1.0) * 0.2
         };
-        let mut w = [[0.0f32; 16]; 4];
+        let mut w = [[0.0f32; 16]; NF];
         for wi in w.iter_mut() {
             for v in wi.iter_mut() {
                 *v = rnd();
             }
         }
-        Encoder::Sed { w, b: [0.0; 16], gw: [[0.0; 16]; 4], gb: [0.0; 16] }
+        Encoder::Sed { w, b: [0.0; 16], gw: [[0.0; 16]; NF], gb: [0.0; 16] }
     }
 
     pub fn n_params(&self) -> usize {
@@ -87,9 +88,9 @@ impl Encoder {
                 y
             }
             Encoder::Sed { w, b, .. } => {
-                let xs = split4(x);
+                let xs = split_feats(x);
                 let mut acc = Sedenion::new(*b);
-                for i in 0..4 {
+                for i in 0..NF {
                     acc = acc + Sedenion::new(w[i]) * xs[i];
                 }
                 *acc.components()
@@ -104,7 +105,7 @@ impl Encoder {
                 *gb = [0.0; EMB];
             }
             Encoder::Sed { gw, gb, .. } => {
-                *gw = [[0.0; 16]; 4];
+                *gw = [[0.0; 16]; NF];
                 *gb = [0.0; 16];
             }
         }
@@ -122,12 +123,12 @@ impl Encoder {
                 }
             }
             Encoder::Sed { gw, gb, .. } => {
-                let xs = split4(x);
+                let xs = split_feats(x);
                 for o in 0..16 {
                     gb[o] += g[o];
                 }
                 // ∂L/∂W[i] = R_{x[i]}ᵀ g
-                for i in 0..4 {
+                for i in 0..NF {
                     let r = xs[i].right_mul_matrix();
                     let gi = matt_vec(&r, g);
                     for o in 0..16 {
@@ -149,7 +150,7 @@ impl Encoder {
                 }
             }
             Encoder::Sed { w, b, gw, gb } => {
-                for i in 0..4 {
+                for i in 0..NF {
                     for o in 0..16 {
                         w[i][o] -= lr * gw[i][o] * scale;
                     }

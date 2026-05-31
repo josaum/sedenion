@@ -15,7 +15,8 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 pub const LATENT: usize = 16;
-pub const INPUT: usize = 64; // = 4 sedenions
+pub const INPUT: usize = 256; // = 16 sedenions
+pub const NF: usize = INPUT / 16; // input sedenion features
 pub const EMB: usize = 16; // embedding dimension (one sedenion)
 
 pub struct Sample {
