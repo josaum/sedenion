@@ -1,0 +1,13 @@
+[package]
+name = "repr-bakeoff"
+version = "0.1.0"
+edition = "2021"
+description = "Controlled SSL bake-off: sedenion-structured projector + ZDA-Reg vs. a matched real-valued baseline, measuring downstream accuracy, collapse, and the ZDA-vs-isotropy tension."
+
+[dependencies]
+sedenion = { path = "../sedenion" }
+rand = "0.8"
+
+[[bin]]
+name = "repr-bakeoff"
+path = "src/main.rs"
