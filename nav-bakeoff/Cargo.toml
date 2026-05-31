@@ -11,3 +11,7 @@ rand = "0.8"
 [[bin]]
 name = "nav-bakeoff"
 path = "src/main.rs"
+
+[[bin]]
+name = "bilinear-probe"
+path = "src/bin/bilinear_probe.rs"
