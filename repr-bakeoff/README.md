@@ -48,7 +48,7 @@ mean over slices. This is ported from `galilai-group/lejepa`
 (`univariate/epps_pulley.py` + `multivariate/slicing.py`) and **numerically
 verified**: `tools/ref_pure.py` (a dependency-free Python port of the reference
 forward) and the Rust `sigreg` agree to f32 precision on shared input
-(`= 0.00045355`), checked in `tests/sanity.rs::sigreg_matches_lejepa_reference`.
+(`= 2.07709580`), checked in `tests/sanity.rs::sigreg_matches_lejepa_reference`.
 
 Two datasets feed the same pipeline: a synthetic two-view task, and real **MNIST**
 (two augmented views through a fixed random 784→256 backbone shared by both arms).
