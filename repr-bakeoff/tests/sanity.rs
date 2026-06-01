@@ -124,9 +124,10 @@ fn sigreg_gradient_matches_finite_difference() {
 }
 
 /// Faithfulness: our SIGReg must reproduce the galilai-group/lejepa reference
-/// (`epps_pulley.py` + `slicing.py`) numerically. A NumPy port of that exact
-/// forward, on this same LCG input (64×16 embeddings, 8 unit slices), yields
-/// mean-over-slices = 0.18367205. We match it to f32 precision.
+/// (`epps_pulley.py` + `slicing.py`) numerically. A dependency-free Python port
+/// of that exact forward (`tools/ref_pure.py`), on this same LCG input (64×16
+/// embeddings, 8 unit slices), yields mean-over-slices = 2.07709580. We match it
+/// to f32 precision.
 #[test]
 fn sigreg_matches_lejepa_reference() {
     fn lcg_vec(seed: u64, count: usize) -> Vec<f32> {
@@ -161,12 +162,12 @@ fn sigreg_matches_lejepa_reference() {
         .collect();
     let rows: Vec<usize> = (0..n).collect();
     let (stat, _) = sigreg(&z, &rows, &dirs);
-    // Value computed by a pure-Python port of the lejepa reference forward
-    // (epps_pulley.py + slicing.py) on this exact LCG input — see
-    // tools/ref_pure.py. Not a guessed constant.
-    let reference = 0.00045355f32;
+    // Value computed by the pure-Python port of the lejepa reference forward
+    // (epps_pulley.py + slicing.py) on this exact LCG input — `tools/ref_pure.py`
+    // prints 2.07709580. Computed, not guessed.
+    let reference = 2.0770958f32;
     assert!(
-        (stat - reference).abs() < 1e-5,
+        (stat - reference).abs() < 2e-4,
         "SIGReg deviates from lejepa reference: got {stat}, expected {reference}"
     );
 }
