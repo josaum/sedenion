@@ -127,7 +127,7 @@ pub fn sigreg(z: &[[f32; EMB]], rows: &[usize], dirs: &[[f32; EMB]]) -> (f32, Ve
 }
 
 /// Held-out Gaussianity: mean Epps–Pulley statistic over fresh random projections
-/// (0 ⇒ each standardized projection is shape-indistinguishable from a Gaussian).
+/// (0 ⇒ each raw projection matches the standard normal N(0,1)).
 pub fn gaussianity(emb: &[[f32; EMB]], seed: u64, m: usize) -> f64 {
     let dirs = sample_dirs(seed, m);
     let rows: Vec<usize> = (0..emb.len()).collect();

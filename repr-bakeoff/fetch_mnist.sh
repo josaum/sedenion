@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download MNIST into data/ for `cargo run -p repr-bakeoff -- mnist`.
+# Download MNIST into data/ for `cargo run --release -- mnist`.
 set -e
 mkdir -p data && cd data
 base=https://ossci-datasets.s3.amazonaws.com/mnist

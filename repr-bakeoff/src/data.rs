@@ -2,7 +2,7 @@
 //!
 //! Each class has a random prototype in a 16-D latent space. A sample draws a
 //! latent near its prototype, maps it through a *fixed* random nonlinear feature
-//! map into a 64-D input, and produces **two views** by adding small input-space
+//! map into a 256-D input, and produces **two views** by adding small input-space
 //! noise. Self-supervised training only sees the view pairs (no labels); labels
 //! are held out for the downstream linear probe.
 //!
@@ -79,10 +79,18 @@ pub fn generate(seed: u64, n_classes: usize, n_train: usize, n_test: usize) -> D
             view_a[i] = clean[i] + sigma_view * gaussian(rng);
             view_b[i] = clean[i] + sigma_view * gaussian(rng);
         }
-        Sample { view_a, view_b, label }
+        Sample {
+            view_a,
+            view_b,
+            label,
+        }
     };
 
     let train = (0..n_train).map(|_| make(&mut rng)).collect();
     let test = (0..n_test).map(|_| make(&mut rng)).collect();
-    Dataset { train, test, n_classes }
+    Dataset {
+        train,
+        test,
+        n_classes,
+    }
 }

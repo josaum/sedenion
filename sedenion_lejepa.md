@@ -1,7 +1,13 @@
 Sedenion-LeJEPA: Isotropic Gaussian Embedding in 16D Hypercomplex Latent Space
 =================================================================================
 
-This document explores how sedenions (16-dimensional Cayley-Dickson algebra) can be mapped to LeJEPA's isotropic Gaussian framework and SIGReg regularization for representation learning. It outlines the theoretical foundation, the architecture, and why sedenions offer unique advantages.
+This document explores how sedenions (16-dimensional Cayley-Dickson algebra) can be mapped to LeJEPA's isotropic Gaussian framework and SIGReg regularization for representation learning. It outlines the theoretical foundation, the architecture, and the hypothesized advantages.
+
+**Status:** treat this as a design note, not as an empirical result. The controlled
+`repr-bakeoff` harness now tests the core claims; under the fixed LeJEPA SIGReg
+objective, the current auto-balanced ZDA barrier lets the sedenion arm beat the
+dense baseline in this narrow harness without a raw `λ_zda` sweep. See
+[`repr-bakeoff/README.md`](repr-bakeoff/README.md) for the measured results.
 
 ## 1. Background: LeJEPA & SIGReg
 
@@ -82,8 +88,16 @@ This is a **novel** regularization term specific to sedenion latent spaces.
 - `||A|| = ||B||` (equal norm)
 - `A · B = 0` (orthogonal)
 
-**ZDA-Reg Loss**: Penalize the embedding's proximity to the zero divisor manifold:
-`L_ZDA = Σ_i (||A_i||² - ||B_i||²)² + (A_i · B_i)²`
+**ZDA-Reg Loss**: the current implementation uses the `repr-bakeoff`-validated
+barrier, not the superseded raw distance. For each embedding `Z_i=(A_i,B_i)`:
+
+```
+score_i = sqrt((||A_i||² - ||B_i||²)² + (2 A_i · B_i)²) / (||A_i||² + ||B_i||²)
+L_ZDA   = Σ_i -log(score_i) + norm_floor_i
+```
+
+Training applies the ZDA gradient with automatic RMS balancing against the base
+SIGReg/invariance gradient, so there is no raw `λ_zda` sweep to tune.
 
 **Why this matters for representation learning:**
 - **Collapse Prevention**: If the encoder collapses to a zero divisor `Z ≠ 0` where `Z * W = 0`, the predictor loses information. ZDA-Reg pushes representations away from the zero-divisor set, ensuring the latent space remains a valid signal space.

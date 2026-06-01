@@ -2,10 +2,11 @@
 
 use crate::data::{Dataset, EMB};
 use crate::metrics::{collapse_metrics, linear_probe, Collapse};
-use crate::model::{loss_and_grad, Encoder, LossWeights};
+use crate::model::{loss_and_grad, zda_loss_and_grad, Encoder, LossWeights};
 use crate::sigreg::{gaussianity, sample_dirs, sigreg};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use sedenion::auto_zda_gradient_scale;
 
 pub struct Result {
     pub n_params: usize,
@@ -19,6 +20,30 @@ pub struct Result {
 /// SIGReg sketch settings.
 const SIG_DIRS: usize = 16; // random projection directions per step
 const SIG_SUB: usize = 512; // sketch subsample size (caps the O(n²) EP cost)
+
+fn grad_rms(g: &[[f32; EMB]]) -> f32 {
+    let mut ss = 0.0f32;
+    let mut n = 0usize;
+    for row in g {
+        for &v in row {
+            ss += v * v;
+            n += 1;
+        }
+    }
+    (ss / n.max(1) as f32).sqrt()
+}
+
+fn embedding_rms(z: &[[f32; EMB]]) -> f32 {
+    let mut ss = 0.0f32;
+    let mut n = 0usize;
+    for row in z {
+        for &v in row {
+            ss += v * v;
+            n += 1;
+        }
+    }
+    (ss / n.max(1) as f32).sqrt()
+}
 
 /// Full-batch gradient descent, then evaluate. Both arms use identical
 /// hyperparameters; only the encoder and the regularizer weights differ. When
@@ -66,6 +91,18 @@ pub fn train_and_eval(
             }
         }
 
+        if w.zda_auto && w.zda > 0.0 {
+            let (zl, zg) = zda_loss_and_grad(&z);
+            final_loss += w.zda * zl;
+            let scale =
+                auto_zda_gradient_scale(w.zda, grad_rms(&g), grad_rms(&zg), embedding_rms(&z));
+            for i in 0..n_rows {
+                for d in 0..EMB {
+                    g[i][d] += scale * zg[i][d];
+                }
+            }
+        }
+
         enc.zero_grad();
         for (xi, gi) in xs.iter().zip(g.iter()) {
             enc.backward(xi, gi);
@@ -82,5 +119,11 @@ pub fn train_and_eval(
     let collapse = collapse_metrics(&test_emb);
     let gauss = gaussianity(&test_emb, 0xE7A1 ^ n_params as u64, 32);
 
-    Result { n_params, final_loss, probe_acc, collapse, gaussianity: gauss }
+    Result {
+        n_params,
+        final_loss,
+        probe_acc,
+        collapse,
+        gaussianity: gauss,
+    }
 }

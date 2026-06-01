@@ -3,8 +3,8 @@
 //!
 //! Pipeline per sample: take the 28×28 image, make **two augmented views**
 //! (random ±2 px shift + pixel noise), pass each through a *fixed random*
-//! backbone (784→64, ReLU) shared by both arms, and standardize the 64 features
-//! on the training set. The learnable 64→16 projector (real vs. sedenion) and the
+//! backbone (784→256, ReLU) shared by both arms, and standardize the 256 features
+//! on the training set. The learnable 256→16 projector (real vs. sedenion) and the
 //! linear probe then operate exactly as in the synthetic experiment.
 //!
 //! The backbone is frozen random features (not a trained deep net) — a standard,
@@ -23,7 +23,8 @@ fn be_u32(b: &[u8]) -> usize {
 }
 
 fn load_images(path: &str) -> (Vec<u8>, usize) {
-    let data = fs::read(path).unwrap_or_else(|_| panic!("missing {path}; run repr-bakeoff/fetch_mnist.sh"));
+    let data = fs::read(path)
+        .unwrap_or_else(|_| panic!("missing {path}; run repr-bakeoff/fetch_mnist.sh"));
     let n = be_u32(&data[4..8]);
     (data[16..16 + n * PIX].to_vec(), n)
 }
@@ -46,7 +47,12 @@ pub fn load_raw(dir: &str) -> Raw {
     let train_lab = load_labels(&format!("{dir}/train-labels-idx1-ubyte"));
     let (test_img, _) = load_images(&format!("{dir}/t10k-images-idx3-ubyte"));
     let test_lab = load_labels(&format!("{dir}/t10k-labels-idx1-ubyte"));
-    Raw { train_img, train_lab, test_img, test_lab }
+    Raw {
+        train_img,
+        train_lab,
+        test_img,
+        test_lab,
+    }
 }
 
 fn gaussian(rng: &mut StdRng) -> f32 {
@@ -76,7 +82,9 @@ fn augment(img: &[u8], rng: &mut StdRng) -> [f32; PIX] {
 /// Frozen random backbone 784→INPUT with ReLU. Seeded so both arms share it.
 fn backbone(seed: u64) -> Vec<f32> {
     let mut rng = StdRng::seed_from_u64(seed ^ 0xBADC0FFEE);
-    (0..INPUT * PIX).map(|_| gaussian(&mut rng) / (PIX as f32).sqrt()).collect()
+    (0..INPUT * PIX)
+        .map(|_| gaussian(&mut rng) / (PIX as f32).sqrt())
+        .collect()
 }
 
 fn apply_backbone(w: &[f32], px: &[f32; PIX]) -> [f32; INPUT] {
@@ -115,8 +123,13 @@ pub fn build(raw: &Raw, seed: u64, n_train: usize, n_test: usize) -> Dataset {
         (feats_a, feats_b, labels)
     };
 
-    let (mut tr_a, mut tr_b, tr_lab) =
-        build_split(&raw.train_img, &raw.train_lab, n_tr_avail, n_train, &mut rng);
+    let (mut tr_a, mut tr_b, tr_lab) = build_split(
+        &raw.train_img,
+        &raw.train_lab,
+        n_tr_avail,
+        n_train,
+        &mut rng,
+    );
     let (mut te_a, mut te_b, te_lab) =
         build_split(&raw.test_img, &raw.test_lab, n_te_avail, n_test, &mut rng);
 
@@ -151,8 +164,16 @@ pub fn build(raw: &Raw, seed: u64, n_train: usize, n_test: usize) -> Dataset {
         a.into_iter()
             .zip(b)
             .zip(l)
-            .map(|((view_a, view_b), label)| Sample { view_a, view_b, label })
+            .map(|((view_a, view_b), label)| Sample {
+                view_a,
+                view_b,
+                label,
+            })
             .collect()
     };
-    Dataset { train: mk(tr_a, tr_b, tr_lab), test: mk(te_a, te_b, te_lab), n_classes }
+    Dataset {
+        train: mk(tr_a, tr_b, tr_lab),
+        test: mk(te_a, te_b, te_lab),
+        n_classes,
+    }
 }

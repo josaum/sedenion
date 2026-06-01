@@ -33,9 +33,9 @@ impl Default for ImuParams {
     fn default() -> Self {
         // Representative low-cost MEMS, ~consumer/industrial grade.
         ImuParams {
-            accel_white: 0.05,   // m/s^2 per step
-            bias_rw: 0.002,      // m/s^2 random walk
-            bias_init: 0.02,     // ~2 mg
+            accel_white: 0.05, // m/s^2 per step
+            bias_rw: 0.002,    // m/s^2 random walk
+            bias_init: 0.02,   // ~2 mg
             duffing_beta: 0.0,
         }
     }
@@ -101,7 +101,11 @@ pub fn generate(seed: u64, steps: usize, dt: f64, p: &ImuParams) -> Vec<Sample> 
         let truth = [
             pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], bias[0], bias[1], bias[2],
         ];
-        out.push(Sample { t, accel_meas, truth });
+        out.push(Sample {
+            t,
+            accel_meas,
+            truth,
+        });
     }
     out
 }

@@ -3,7 +3,7 @@
 //! Hardware-optimized 16D Cayley-Dickson algebra with:
 //! - 64-byte alignment (one L1 cache line, one AVX-512 register)
 //! - O(N) squaring via the anti-commutativity trick
-//! - Zero-divisor detection and ZDA-Reg
+//! - Zero-divisor detection and auto-balanced ZDA-Reg primitives
 //! - Power-associative exponentiation
 //! - Zero-cost subalgebra sketches
 //!
@@ -383,20 +383,86 @@ impl Sedenion {
         (is_zd, dist)
     }
 
-    /// ZDA-Reg loss: penalize proximity to zero-divisor manifold.
-    /// This is the key regularization term for Sedenion-LeJEPA.
+    /// Scale-invariant zero-divisor score.
+    ///
+    /// For `Z = (A, B)`, zero divisors satisfy `||A|| = ||B||` and `A·B = 0`.
+    /// This score is `0` on that cone and approaches `1` away from it:
+    ///
+    /// `sqrt((||A||² - ||B||²)² + (2 A·B)²) / (||A||² + ||B||²)`.
     #[inline(always)]
-    pub fn zda_loss(&self) -> f32 {
-        let (_, dist) = self.zero_divisor_status();
-        dist
+    pub fn zda_score(&self) -> f32 {
+        let (mut na, mut nb, mut dot) = (0.0f32, 0.0f32, 0.0f32);
+        for k in 0..8 {
+            na += self.0[k] * self.0[k];
+            nb += self.0[8 + k] * self.0[8 + k];
+            dot += self.0[k] * self.0[8 + k];
+        }
+        let denom = na + nb;
+        if denom <= 0.0 {
+            return 0.0;
+        }
+        let delta = na - nb;
+        let score = (delta * delta + 4.0 * dot * dot).sqrt() / denom;
+        score.min(1.0)
     }
 
-    /// Margin-based ZDA-Reg: ReLU(margin - zda_score).
-    /// Pushes embeddings away from the G_2 null space.
+    /// Current ZDA-Reg barrier loss.
+    ///
+    /// This is the extracted representation-learning method from `repr-bakeoff`:
+    /// a repulsive `-log(zda_score)` barrier plus a canonical N(0,I) radial
+    /// floor when the per-dimension norm is below 1. Minimizing this pushes
+    /// embeddings away from the zero-divisor cone without exposing a tuned raw
+    /// distance coefficient.
     #[inline(always)]
-    pub fn zda_margin_loss(&self, margin: f32) -> f32 {
-        let score = self.zda_loss().sqrt();
-        (margin - score).max(0.0)
+    pub fn zda_loss(&self) -> f32 {
+        self.zda_loss_and_grad().0
+    }
+
+    /// ZDA-Reg barrier loss and gradient with respect to the 16 components.
+    #[inline(always)]
+    pub fn zda_loss_and_grad(&self) -> (f32, Self) {
+        let row = &self.0;
+        let (mut na, mut nb, mut dot) = (0.0f32, 0.0f32, 0.0f32);
+        for k in 0..8 {
+            na += row[k] * row[k];
+            nb += row[8 + k] * row[8 + k];
+            dot += row[k] * row[8 + k];
+        }
+
+        let delta = na - nb;
+        let score2 = delta * delta + 4.0 * dot * dot;
+        let n = na + nb + 1e-4;
+        let u = (score2 + 1e-8).sqrt();
+        let score = u / n;
+        let score_safe = score + 1e-4;
+        let mut loss = -score_safe.ln();
+        let mut grad = [0.0f32; 16];
+
+        let du_factor = 0.5 / u;
+        for k in 0..8 {
+            let du_da = du_factor * (4.0 * delta * row[k] + 8.0 * dot * row[8 + k]);
+            let du_db = du_factor * (-4.0 * delta * row[8 + k] + 8.0 * dot * row[k]);
+            let dn_da = 2.0 * row[k];
+            let dn_db = 2.0 * row[8 + k];
+
+            let ds_da = (du_da * n - u * dn_da) / (n * n);
+            let ds_db = (du_db * n - u * dn_db) / (n * n);
+
+            grad[k] += -ds_da / score_safe;
+            grad[8 + k] += -ds_db / score_safe;
+        }
+
+        let norm_per_dim = (na + nb) / 16.0;
+        if norm_per_dim < 1.0 {
+            let denom = na + nb + 1e-4 * 16.0;
+            loss += -((norm_per_dim + 1e-4).sqrt()).ln();
+            for k in 0..8 {
+                grad[k] += -row[k] / denom;
+                grad[8 + k] += -row[8 + k] / denom;
+            }
+        }
+
+        (loss, Self(grad))
     }
 
     // -------------------------------------------------------------------------
@@ -647,6 +713,58 @@ pub fn batch_matvec(
         .collect()
 }
 
+/// Mean ZDA-Reg barrier loss and component gradients for a batch.
+pub fn zda_batch_loss_and_grad(batch: &[Sedenion]) -> (f32, Vec<Sedenion>) {
+    if batch.is_empty() {
+        return (0.0, Vec::new());
+    }
+
+    let inv_n = 1.0 / batch.len() as f32;
+    let mut loss = 0.0f32;
+    let mut grads = Vec::with_capacity(batch.len());
+
+    for z in batch {
+        let (l, mut g) = z.zda_loss_and_grad();
+        loss += l * inv_n;
+        for c in g.components_mut() {
+            *c *= inv_n;
+        }
+        grads.push(g);
+    }
+
+    (loss, grads)
+}
+
+/// Root-mean-square component magnitude across a sedenion batch.
+pub fn sedenion_batch_rms(batch: &[Sedenion]) -> f32 {
+    let mut ss = 0.0f32;
+    let mut n = 0usize;
+    for z in batch {
+        for &v in z.components() {
+            ss += v * v;
+            n += 1;
+        }
+    }
+    (ss / n.max(1) as f32).sqrt()
+}
+
+/// Parameter-free auto-ZDA gradient scale used by the validated repr-bakeoff arm.
+///
+/// The ZDA gradient is matched to the current base-objective gradient RMS and
+/// boosted only while embeddings are below the N(0,I) component RMS target.
+pub fn auto_zda_gradient_scale(
+    strength: f32,
+    base_grad_rms: f32,
+    zda_grad_rms: f32,
+    embedding_rms: f32,
+) -> f32 {
+    if strength <= 0.0 {
+        return 0.0;
+    }
+    let scale_boost = 1.0 / embedding_rms.min(1.0).max(1e-3);
+    strength * scale_boost * base_grad_rms / zda_grad_rms.max(1e-12)
+}
+
 // =============================================================================
 // Isotropic Gaussian utilities for SIGReg
 // =============================================================================
@@ -774,11 +892,52 @@ mod tests {
     }
 
     #[test]
-    fn test_zda_margin() {
-        let z = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+    fn test_zda_score_and_barrier() {
+        let mut zd = [0.0; 16];
+        zd[3] = 1.0;
+        zd[10] = 1.0;
+        let near_zero_divisor = Sedenion::new(zd);
+
+        let away = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+                                  9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+
+        assert!(near_zero_divisor.zda_score() < 1e-6);
+        assert!(away.zda_score() > near_zero_divisor.zda_score());
+        assert!(near_zero_divisor.zda_loss() > away.zda_loss());
+    }
+
+    #[test]
+    fn test_zda_barrier_gradient_matches_finite_difference() {
+        let z = Sedenion::new([1.2, -0.7, 0.4, 1.1, -1.3, 0.8, 0.5, -0.9,
+                               0.6, 1.4, -1.1, 0.3, 0.7, -0.4, 1.5, -0.8]);
+        let (_, grad) = z.zda_loss_and_grad();
+
+        let eps = 1e-3;
+        let idx = 5;
+        let mut plus = *z.components();
+        let mut minus = *z.components();
+        plus[idx] += eps;
+        minus[idx] -= eps;
+        let fd = (Sedenion::new(plus).zda_loss() - Sedenion::new(minus).zda_loss()) / (2.0 * eps);
+
+        assert!(
+            (fd - grad.components()[idx]).abs() < 2e-2,
+            "ZDA gradient mismatch: finite_diff={} analytic={}",
+            fd,
+            grad.components()[idx]
+        );
+    }
+
+    #[test]
+    fn test_zda_batch_loss_is_average() {
+        let a = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
                                9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
-        let loss = z.zda_margin_loss(1.0);
-        assert!(loss >= 0.0);
+        let b = Sedenion::new([0.5, -0.2, 0.7, 1.1, -0.8, 0.4, 0.9, -1.3,
+                               1.0, -0.6, 0.2, 0.8, -1.1, 1.5, -0.4, 0.3]);
+        let (loss, grad) = zda_batch_loss_and_grad(&[a, b]);
+        assert!((loss - 0.5 * (a.zda_loss() + b.zda_loss())).abs() < 1e-6);
+        assert_eq!(grad.len(), 2);
+        assert!(auto_zda_gradient_scale(1.0, 2.0, 4.0, 0.5) > 0.0);
     }
 
     #[test]

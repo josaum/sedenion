@@ -104,7 +104,11 @@ pub fn collapse_metrics(emb: &[[f32; EMB]]) -> Collapse {
     for i in 0..EMB {
         for j in 0..EMB {
             let target = if i == j { 1.0 / EMB as f64 } else { 0.0 };
-            let val = if trace > 1e-30 { c[i * EMB + j] / trace } else { 0.0 };
+            let val = if trace > 1e-30 {
+                c[i * EMB + j] / trace
+            } else {
+                0.0
+            };
             iso += (val - target) * (val - target);
         }
     }
@@ -113,5 +117,9 @@ pub fn collapse_metrics(emb: &[[f32; EMB]]) -> Collapse {
     for d in 0..EMB {
         min_std = min_std.min(c[d * EMB + d].max(0.0).sqrt());
     }
-    Collapse { effective_rank: erank, isotropy_dist: iso, min_std }
+    Collapse {
+        effective_rank: erank,
+        isotropy_dist: iso,
+        min_std,
+    }
 }
