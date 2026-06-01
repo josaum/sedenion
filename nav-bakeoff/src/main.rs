@@ -3,7 +3,7 @@
 //! horizontal-position RMSE vs. time. Writes a tidy CSV for plotting.
 //!
 //! Usage:
-//!   cargo run --release -p nav-bakeoff -- [seeds] [duration_s] [--duffing]
+//!   cargo run --release --bin nav-bakeoff -- [seeds] [duration_s] [--duffing]
 
 use nav_bakeoff::filters::{run, Config};
 use nav_bakeoff::sim::{generate, ImuParams};
@@ -55,16 +55,39 @@ fn main() {
         lambda: f64,
     }
     let variants = [
-        Variant { name: "Baseline UKF", sedenion: false, lambda: 0.0 },
-        Variant { name: "SUKF λ=0.00 ", sedenion: true, lambda: 0.0 },
-        Variant { name: "SUKF λ=0.25 ", sedenion: true, lambda: 0.25 },
-        Variant { name: "SUKF λ=0.50 ", sedenion: true, lambda: 0.50 },
-        Variant { name: "SUKF λ=1.00 ", sedenion: true, lambda: 1.00 },
+        Variant {
+            name: "Baseline UKF",
+            sedenion: false,
+            lambda: 0.0,
+        },
+        Variant {
+            name: "SUKF λ=0.00 ",
+            sedenion: true,
+            lambda: 0.0,
+        },
+        Variant {
+            name: "SUKF λ=0.25 ",
+            sedenion: true,
+            lambda: 0.25,
+        },
+        Variant {
+            name: "SUKF λ=0.50 ",
+            sedenion: true,
+            lambda: 0.50,
+        },
+        Variant {
+            name: "SUKF λ=1.00 ",
+            sedenion: true,
+            lambda: 1.00,
+        },
     ];
 
     let mut csv = String::from("mode,estimator,lambda,t_s,rmse_horizontal_m\n");
 
-    for (mode_name, fix_interval) in [("DEAD-RECKONING (no aiding)", None), ("AIDED (30 s position fix, σ=5 m)", Some(30.0))] {
+    for (mode_name, fix_interval) in [
+        ("DEAD-RECKONING (no aiding)", None),
+        ("AIDED (30 s position fix, σ=5 m)", Some(30.0)),
+    ] {
         println!("== {mode_name} ==");
         print!("{:<14}", "estimator");
         for t in &markers {
@@ -73,7 +96,12 @@ fn main() {
         println!();
 
         for v in &variants {
-            let cfg = Config { dt, fix_interval, fix_sigma: 5.0, lambda: v.lambda };
+            let cfg = Config {
+                dt,
+                fix_interval,
+                fix_sigma: 5.0,
+                lambda: v.lambda,
+            };
             let mut per_seed = Vec::new();
             for seed in 0..seeds {
                 let traj = generate(seed, steps, dt, &params);
@@ -85,7 +113,11 @@ fn main() {
                 print!("  {:>9.1}", r);
                 csv.push_str(&format!(
                     "{},{},{},{:.2},{:.4}\n",
-                    if fix_interval.is_none() { "dead_reckoning" } else { "aided" },
+                    if fix_interval.is_none() {
+                        "dead_reckoning"
+                    } else {
+                        "aided"
+                    },
                     v.name.trim(),
                     v.lambda,
                     t,

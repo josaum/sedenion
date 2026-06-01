@@ -30,7 +30,7 @@ three facts that matter:
 
 ## 2. The decisive diagnostic: does strapdown coupling live in the algebra?
 
-`bilinear-probe` (`cargo run --release -p nav-bakeoff --bin bilinear-probe`)
+`bilinear-probe` (`cargo run --release --bin bilinear-probe`)
 answers the one question that decides whether sedenions do physical work.
 
 For a frozen rotation rate `ω̄`, the part of the nondimensionalized navigation

@@ -56,7 +56,8 @@ Single core, compiled with `-C target-cpu=native`:
 | `Sedenion.square()` (O(N)) | **4.85 ns** | ~200M ops/sec |
 | `Sedenion.powu(3)` | **4.84 ns** | Binary exponentiation via O(N) squaring |
 | `norm_sq` | **4.85 ns** | Auto-vectorized SIMD dot-product |
-| `zda_loss` | **4.84 ns** | Zero-divisor regularization |
+| `zda_score` | **see benches** | Scale-invariant zero-divisor score |
+| `zda_loss_and_grad` | **see benches** | Auto-ZDA barrier + gradient |
 | `sketch_octonion` | **4.85 ns** | Zero-cost slice |
 
 ---
@@ -77,7 +78,8 @@ let z2 = z.square();  // 4.85 ns
 let z3 = z.powu(3);  // 4.84 ns via binary exponentiation
 
 // Zero-divisor-aware regularization (LeJEPA anti-collapse)
-let loss = z.zda_margin_loss(1.0);
+let score = z.zda_score();
+let (loss, grad) = z.zda_loss_and_grad();
 
 // Zero-cost subalgebra sketches for SIGReg
 let oct = z.sketch_octonion();   // &[f32; 8]
@@ -119,14 +121,22 @@ A sedenion `Z = (A, B)` is a zero divisor iff:
 - `A · B = 0` (orthogonal)
 - `A` and `B` are pure-imaginary
 
-The ZDA-Reg loss penalizes proximity to the zero-divisor manifold:
+The exported ZDA-Reg method is the barrier validated in `repr-bakeoff`, not the
+old raw-distance objective. It first computes the scale-invariant score:
 
 ```
-L_ZDA = (||A||² - ||B||²)² + (A · B)²
+score = sqrt((||A||² - ||B||²)² + (2 A · B)²) / (||A||² + ||B||²)
+```
+
+Then it minimizes a repulsive barrier plus a radial floor:
+
+```
+L_ZDA = -log(score) + max(0, -log(||Z|| / sqrt(16)))
 ```
 
 **Why this matters:**
 - **Anti-collapse**: If the encoder collapses to a zero divisor, the predictor can hit `Z · W = 0` for non-zero `W` and lose information. ZDA-Reg pushes embeddings away from this algebraic null space.
+- **No raw λ sweep**: use `auto_zda_gradient_scale(...)` to match the ZDA gradient RMS to the current base-objective gradient, with an automatic boost only while embeddings are below the N(0,I) norm target.
 - **G₂ geometry**: The unit zero-divisor set is homeomorphic to the exceptional Lie group **G₂**. By controlling distance to this manifold, you embed exceptional symmetry into the latent space in a way no standard R^d or C^d space can.
 
 ---
@@ -176,8 +186,10 @@ sedenion/
 | `Sedenion::square` | O(N) squaring via anti-commutativity | O(N) ~ 16 ops |
 | `Sedenion::powu` | Binary exponentiation (uses `square`) | O(log n) |
 | `Sedenion::norm_sq` | Isotropic norm for SIGReg | O(N) SIMD |
-| `Sedenion::zda_loss` | Zero-divisor distance | O(N) SIMD |
-| `Sedenion::zda_margin_loss` | Margin-based ZDA-Reg | O(N) SIMD |
+| `Sedenion::zda_score` | Scale-invariant zero-divisor score | O(N) SIMD |
+| `Sedenion::zda_loss_and_grad` | ZDA barrier and component gradient | O(N) SIMD |
+| `zda_batch_loss_and_grad` | Mean ZDA loss/gradient for embeddings | O(batch × N) |
+| `auto_zda_gradient_scale` | Parameter-free auto-ZDA gradient balancing | O(1) |
 | `Sedenion::sketch_*` | Subalgebra projections | O(1) zero-cost |
 | `SedenionMatrix::matvec` | Linear transform | O(rows × cols × N²) |
 | `SedenionMatrix::matvec_backward` | Backprop gradients | O(rows × cols × N²) |

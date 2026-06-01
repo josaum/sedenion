@@ -282,7 +282,11 @@ pub fn operator_diagnostics(s: &Sedenion) -> OpDiag {
     OpDiag {
         sigma_min: smin,
         sigma_max: smax,
-        kappa: if smin > 1e-12 { smax / smin } else { f64::INFINITY },
+        kappa: if smin > 1e-12 {
+            smax / smin
+        } else {
+            f64::INFINITY
+        },
         zd_dist: zd,
     }
 }

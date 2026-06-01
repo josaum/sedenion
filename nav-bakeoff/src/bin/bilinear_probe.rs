@@ -3,7 +3,7 @@
 //! quaternion-generator ablation, across a sweep of (nondimensional) rotation
 //! rates, plus operator conditioning diagnostics.
 //!
-//!   cargo run --release -p nav-bakeoff --bin bilinear-probe
+//!   cargo run --release --bin bilinear-probe
 
 use nav_bakeoff::bilinear::{
     attitude_block_residual, generators, operator_diagnostics, reachable_dim, residual,
@@ -54,18 +54,27 @@ fn main() {
         "\nControl — attitude block alone, projected onto 4×4 quaternion operators:  ρ = {:.2e}",
         attitude_block_residual(wb_ref)
     );
-    println!("  (≈0 confirms the harness, and that 𝕊 earns its keep only in the 4-D attitude corner.)");
+    println!(
+        "  (≈0 confirms the harness, and that 𝕊 earns its keep only in the 4-D attitude corner.)"
+    );
 
     println!("\nInterpretation:");
-    println!("  ρ_full small  → strapdown coupling lives in the sedenion operators (structural win).");
+    println!(
+        "  ρ_full small  → strapdown coupling lives in the sedenion operators (structural win)."
+    );
     println!("  ρ_full large  → physics is NOT in the algebra; F_nonlinear carries it (overhead).");
     println!("  Δρ            → marginal value of the off-quaternion generators e4..e15.");
-    println!("  ρ_att / ρ_vp  → where the misfit concentrates (attitude block vs velocity+position).");
+    println!(
+        "  ρ_att / ρ_vp  → where the misfit concentrates (attitude block vs velocity+position)."
+    );
 
     // Operator conditioning at a few representative states, including near a
     // known zero divisor (e3+e10), where L_a must become singular.
     println!("\nOperator conditioning  (L_a singular values / condition number):");
-    println!("{:<22}  {:>10}  {:>10}  {:>10}  {:>12}", "state", "σ_min", "σ_max", "κ(L_a)", "zd_dist");
+    println!(
+        "{:<22}  {:>10}  {:>10}  {:>10}  {:>12}",
+        "state", "σ_min", "σ_max", "κ(L_a)", "zd_dist"
+    );
 
     let nominal = {
         let mut c = [0.0f32; 16];

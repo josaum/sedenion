@@ -2,9 +2,10 @@
 
 > **Reproducibility note.** Every quantitative claim in this paper is generated
 > by code in this repository. The bakeoff numbers come from
-> `cargo run --release -p nav-bakeoff` (and `... --duffing`); the projection
+> `cargo run --release --bin nav-bakeoff` (and `... -- 16 300 --duffing`);
+> the projection
 > residual and operator diagnostics come from
-> `cargo run --release -p nav-bakeoff --bin bilinear-probe`; the algebraic facts
+> `cargo run --release --bin bilinear-probe`; the algebraic facts
 > are checked by `cargo test` in the `sedenion` crate. A claim-to-artifact map is
 > given in Appendix A. Where this draft previously cited round numbers that did
 > not match the harness, the numbers have been replaced with the measured values.
@@ -795,8 +796,8 @@ interchangeable.
 | `L_a · b = a · b`; `L_aᵀ = L_ā`; skew for pure-imaginary ⇒ SO(16) | §3.2, §5.2 | `sedenion`: `left_mul_matrix`, tests `test_left_mul_matrix_matches_product`, `test_adjoint_equals_conjugate`, `test_pure_imaginary_generates_skew` |
 | `L_Ω² ≠ L_{Ω²}` (non-associativity) | §3.3, §5.2 | `test_left_mul_is_not_homomorphism` |
 | `(e₃+e₁₀)(e₆−e₁₅) = 0`; `L_a` singular | §3.4, §5.3 | `test_zero_divisor`; `zero_divisor_operator_is_singular` |
-| ρ ≈ 0.90–0.96; reachable dim 31; attitude control ρ = 0 | §4.3, §7.3 | `cargo run -p nav-bakeoff --bin bilinear-probe`; `tests/bilinear.rs` |
-| Dead-reckoning 1,346.8 m; aided 20.8 → 35.0 m; Duffing 19.4 → 23.1 m | §7.3 | `cargo run -p nav-bakeoff [-- … --duffing]` |
+| ρ ≈ 0.90–0.96; reachable dim 31; attitude control ρ = 0 | §4.3, §7.3 | `cargo run --release --bin bilinear-probe`; `tests/bilinear.rs` |
+| Dead-reckoning 1,346.8 m; aided 20.8 → 35.0 m; Duffing 19.4 → 23.1 m | §7.3 | `cargo run --release --bin nav-bakeoff`; `cargo run --release --bin nav-bakeoff -- 16 300 --duffing` |
 | λ = 0 bit-identical to baseline; noise-free < 1 mm/100 s | §7.1 | `sukf_lambda_zero_equals_baseline`, `noise_free_baseline_does_not_drift` |
 | κ(L_a): 1.0 nominal, ∞ at zero divisor | §6.4 | `operator_diagnostics` in `bilinear-probe` |
 

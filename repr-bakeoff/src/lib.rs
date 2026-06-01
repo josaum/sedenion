@@ -1,7 +1,8 @@
 //! repr-bakeoff: a controlled self-supervised comparison of a sedenion-structured
-//! projector (+ ZDA-Reg) against a matched real-valued baseline, measuring
-//! downstream linear-probe accuracy, representational collapse, and the tension
-//! between ZDA-Reg and isotropy. See `README.md`.
+//! projector (+ ZDA-Reg) against a matched real-valued baseline under VICReg-style
+//! losses and the LeJEPA SIGReg objective. It measures downstream linear-probe
+//! accuracy, representational collapse, and whether ZDA-Reg helps. See
+//! `README.md`.
 
 pub mod data;
 pub mod linalg;

@@ -15,10 +15,10 @@ separate probe checks whether strapdown physics even lives in the algebra.
 > is precisely where it reduces to quaternions. Reproduce all of it in seconds.
 
 ```bash
-cargo test  --release                                   # all guardrails (sedenion + nav-bakeoff)
-cargo run   --release -p nav-bakeoff                    # SUKF vs UKF bakeoff (linear MEMS)
-cargo run   --release -p nav-bakeoff -- 32 300 --duffing  # nonlinear (Duffing) MEMS
-cargo run   --release -p nav-bakeoff --bin bilinear-probe # does physics live in the algebra?
+cargo test --release                                      # nav-bakeoff guardrails
+cargo run --release --bin nav-bakeoff                     # SUKF vs UKF bakeoff (linear MEMS)
+cargo run --release --bin nav-bakeoff -- 16 300 --duffing # nonlinear (Duffing) MEMS
+cargo run --release --bin bilinear-probe                  # does physics live in the algebra?
 ```
 
 ---
@@ -53,8 +53,8 @@ each step, strength `λ ∈ [0,1]`.
 | Baseline UKF = SUKF λ=0 | 6.7 | 7.7 | 7.8 | **20.8** |
 | SUKF λ=1 | 6.7 | 7.7 | 8.0 | **35.0** |
 
-Duffing variant: aided 19.4 m (baseline) → 23.1 m (λ=1). The optimum is **always
-λ\* = 0**.
+Duffing variant (16 seeds): aided 19.4 m (baseline) → 23.1 m (λ=1). The optimum is
+**always λ\* = 0**.
 
 In dead-reckoning every λ is identical because accelerometer bias is
 **unobservable** — the drift to >1 km is the true, double-integrated bias, and no
@@ -131,10 +131,10 @@ paper is a claim-to-artifact map. The headline figures:
 
 | Claim | Command / test |
 |---|---|
-| Bakeoff RMSE tables | `cargo run --release -p nav-bakeoff [-- 32 300 --duffing]` |
-| ρ ≈ 0.90–0.96, dim 31, attitude ρ = 0 | `cargo run --release -p nav-bakeoff --bin bilinear-probe` |
-| `L_a` correct / non-assoc / skew / adjoint | `cargo test -p sedenion` |
-| λ=0 ≡ baseline; noise-free < 1 mm | `cargo test -p nav-bakeoff` |
+| Bakeoff RMSE tables | `cargo run --release --bin nav-bakeoff` and `cargo run --release --bin nav-bakeoff -- 16 300 --duffing` |
+| ρ ≈ 0.90–0.96, dim 31, attitude ρ = 0 | `cargo run --release --bin bilinear-probe` |
+| `L_a` correct / non-assoc / skew / adjoint | `(cd ../sedenion && cargo test --release)` |
+| λ=0 ≡ baseline; noise-free < 1 mm | `cargo test --release` |
 
 The bakeoff writes `bakeoff_results.csv`
 (`mode,estimator,lambda,t_s,rmse_horizontal_m`) for plotting.

@@ -10,13 +10,12 @@
 //!   the exact backward uses the right-multiplication operator, since `W·x` is
 //!   linear in `W` with Jacobian `R_x`, so `∂L/∂W[i] = R_{x[i]}ᵀ g`.
 //!
-//! Loss = VICReg (invariance + variance + covariance) on the two views, with an
-//! optional Zero-Divisor-Aware term (`λ_zda`) on the sedenion arm. The covariance
-//! term is the principled anti-collapse / isotropy driver; ZDA-Reg is the term
-//! under test.
+//! Loss = invariance on the two views plus either VICReg variance/covariance terms
+//! or SIGReg in the training loop, with an optional Zero-Divisor-Aware term
+//! (`λ_zda`) on the sedenion arm. ZDA-Reg is the term under test.
 
 use crate::data::{EMB, INPUT, NF};
-use sedenion::Sedenion;
+use sedenion::{zda_batch_loss_and_grad, Sedenion};
 
 fn split_feats(x: &[f32; INPUT]) -> [Sedenion; NF] {
     let mut out = [Sedenion::new([0.0; 16]); NF];
@@ -40,24 +39,43 @@ fn matt_vec(m: &[[f32; 16]; 16], v: &[f32; 16]) -> [f32; 16] {
 }
 
 pub enum Encoder {
-    Real { w: Vec<f32>, b: [f32; EMB], gw: Vec<f32>, gb: [f32; EMB] },
-    Sed { w: [[f32; 16]; NF], b: [f32; 16], gw: [[f32; 16]; NF], gb: [f32; 16] },
+    Real {
+        w: Vec<f32>,
+        b: [f32; EMB],
+        gw: Vec<f32>,
+        gb: [f32; EMB],
+    },
+    Sed {
+        w: [[f32; 16]; NF],
+        b: [f32; 16],
+        gw: [[f32; 16]; NF],
+        gb: [f32; 16],
+    },
 }
 
 impl Encoder {
     pub fn new_real(seed: u64) -> Self {
         let mut s = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1);
         let mut rnd = || {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             ((s >> 33) as f32 / (1u64 << 31) as f32 - 1.0) * 0.1
         };
         let w: Vec<f32> = (0..EMB * INPUT).map(|_| rnd()).collect();
-        Encoder::Real { w, b: [0.0; EMB], gw: vec![0.0; EMB * INPUT], gb: [0.0; EMB] }
+        Encoder::Real {
+            w,
+            b: [0.0; EMB],
+            gw: vec![0.0; EMB * INPUT],
+            gb: [0.0; EMB],
+        }
     }
     pub fn new_sed(seed: u64) -> Self {
         let mut s = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(7);
         let mut rnd = || {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             ((s >> 33) as f32 / (1u64 << 31) as f32 - 1.0) * 0.2
         };
         let mut w = [[0.0f32; 16]; NF];
@@ -66,7 +84,12 @@ impl Encoder {
                 *v = rnd();
             }
         }
-        Encoder::Sed { w, b: [0.0; 16], gw: [[0.0; 16]; NF], gb: [0.0; 16] }
+        Encoder::Sed {
+            w,
+            b: [0.0; 16],
+            gw: [[0.0; 16]; NF],
+            gb: [0.0; 16],
+        }
     }
 
     pub fn n_params(&self) -> usize {
@@ -168,6 +191,9 @@ pub struct LossWeights {
     pub var: f32,
     pub cov: f32,
     pub zda: f32,
+    /// If true, the training loop applies ZDA with gradient balancing instead of
+    /// treating `zda` as a raw scalar loss coefficient.
+    pub zda_auto: bool,
     /// SIGReg weight (handled in the training loop, not in `loss_and_grad`).
     pub sig: f32,
 }
@@ -178,6 +204,24 @@ pub struct LossOut {
     pub var: f32,
     pub cov: f32,
     pub zda: f32,
+}
+
+/// Zero-Divisor-Aware barrier loss and gradient.
+///
+/// For a sedenion row z=(A,B), zero divisors satisfy `||A|| = ||B||` and
+/// `A·B = 0`. We use the scale-invariant score
+/// `sqrt((||A||²-||B||²)² + (2 A·B)²) / (||A||²+||B||²)`, whose natural range is
+/// [0,1] away from numerical epsilon. The barrier has two parameter-free parts:
+/// `-log(score)`, which keeps rows away from the zero-divisor cone, and a radial
+/// `-log(||z||/sqrt(EMB))` floor when the row norm is below the N(0,I) target.
+///
+/// This delegates to the public `sedenion` crate API; the bakeoff is now a
+/// consumer of the method, not its only implementation.
+pub fn zda_loss_and_grad(z: &[[f32; EMB]]) -> (f32, Vec<[f32; EMB]>) {
+    let batch: Vec<Sedenion> = z.iter().map(|row| Sedenion::new(*row)).collect();
+    let (loss, grads) = zda_batch_loss_and_grad(&batch);
+    let grad = grads.into_iter().map(|g| *g.components()).collect();
+    (loss, grad)
 }
 
 /// VICReg(+ZDA) loss and its gradient w.r.t. each embedding row.
@@ -273,26 +317,28 @@ pub fn loss_and_grad(z: &[[f32; EMB]], w: &LossWeights) -> (LossOut, Vec<[f32; E
         }
     }
 
-    // --- ZDA-Reg (sedenion arm only; w.zda may be 0) ---
+    // --- ZDA-Reg (raw scalar mode; auto-balanced mode is handled in train.rs) ---
+    let raw_zda_weight = if w.zda_auto { 0.0 } else { w.zda };
     let mut l_zda = 0.0;
-    if w.zda != 0.0 {
-        for (ni, row) in z.iter().enumerate() {
-            let (mut na, mut nb, mut dot) = (0.0f32, 0.0f32, 0.0f32);
-            for k in 0..8 {
-                na += row[k] * row[k];
-                nb += row[8 + k] * row[8 + k];
-                dot += row[k] * row[8 + k];
-            }
-            l_zda += ((na - nb) * (na - nb) + dot * dot) / nf;
-            for k in 0..8 {
-                // dl/dA_k = 4(na-nb)A_k + 2 dot B_k ; dl/dB_k = -4(na-nb)B_k + 2 dot A_k
-                g[ni][k] += w.zda * (4.0 * (na - nb) * row[k] + 2.0 * dot * row[8 + k]) / nf;
-                g[ni][8 + k] +=
-                    w.zda * (-4.0 * (na - nb) * row[8 + k] + 2.0 * dot * row[k]) / nf;
+    if raw_zda_weight != 0.0 {
+        let (l, gz) = zda_loss_and_grad(z);
+        l_zda = l;
+        for (gi, zi) in g.iter_mut().zip(gz.iter()) {
+            for d in 0..EMB {
+                gi[d] += raw_zda_weight * zi[d];
             }
         }
     }
 
-    let total = w.inv * l_inv + w.var * l_var + w.cov * l_cov + w.zda * l_zda;
-    (LossOut { total, inv: l_inv, var: l_var, cov: l_cov, zda: l_zda }, g)
+    let total = w.inv * l_inv + w.var * l_var + w.cov * l_cov + raw_zda_weight * l_zda;
+    (
+        LossOut {
+            total,
+            inv: l_inv,
+            var: l_var,
+            cov: l_cov,
+            zda: l_zda,
+        },
+        g,
+    )
 }

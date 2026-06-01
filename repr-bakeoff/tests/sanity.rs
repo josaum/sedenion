@@ -7,7 +7,9 @@ use repr_bakeoff::sigreg::{sample_dirs, sigreg};
 use sedenion::Sedenion;
 
 fn lcg(seed: &mut u64) -> f32 {
-    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *seed = seed
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     (*seed >> 33) as f32 / (1u64 << 31) as f32 - 1.0
 }
 
@@ -25,7 +27,14 @@ fn loss_gradient_matches_finite_difference() {
             r
         })
         .collect();
-    let w = LossWeights { inv: 2.0, var: 3.0, cov: 1.5, zda: 0.7, sig: 0.0 };
+    let w = LossWeights {
+        inv: 2.0,
+        var: 3.0,
+        cov: 1.5,
+        zda: 0.7,
+        zda_auto: false,
+        sig: 0.0,
+    };
     let (_, g) = loss_and_grad(&z, &w);
 
     let eps = 1e-3f32;
@@ -42,7 +51,10 @@ fn loss_gradient_matches_finite_difference() {
             max_err = max_err.max((num - g[ni][d]).abs());
         }
     }
-    assert!(max_err < 2e-2, "loss gradient mismatch: max_err = {max_err}");
+    assert!(
+        max_err < 2e-2,
+        "loss gradient mismatch: max_err = {max_err}"
+    );
 }
 
 /// The sedenion layer's backward identity `∂(W·x)/∂W = R_x` (used by the encoder)
@@ -73,7 +85,9 @@ fn sedenion_layer_backward_matches_finite_difference() {
     let eps = 1e-3f32;
     let loss = |wc: &[f32; 16]| -> f32 {
         let y = Sedenion::new(*wc) * x;
-        (0..16).map(|k| cvec.components()[k] * y.components()[k]).sum()
+        (0..16)
+            .map(|k| cvec.components()[k] * y.components()[k])
+            .sum()
     };
     let mut max_err = 0.0f32;
     for m in 0..16 {
@@ -85,7 +99,10 @@ fn sedenion_layer_backward_matches_finite_difference() {
         let num = (lp - lm) / (2.0 * eps);
         max_err = max_err.max((num - analytic[m]).abs());
     }
-    assert!(max_err < 1e-2, "sedenion backward mismatch: max_err = {max_err}");
+    assert!(
+        max_err < 1e-2,
+        "sedenion backward mismatch: max_err = {max_err}"
+    );
 }
 
 /// The SIGReg (Epps–Pulley) gradient must match central finite differences.
@@ -120,7 +137,10 @@ fn sigreg_gradient_matches_finite_difference() {
             max_err = max_err.max((num - g[ni][d]).abs());
         }
     }
-    assert!(max_err < 2e-2, "SIGReg gradient mismatch: max_err = {max_err}");
+    assert!(
+        max_err < 2e-2,
+        "SIGReg gradient mismatch: max_err = {max_err}"
+    );
 }
 
 /// Faithfulness: our SIGReg must reproduce the galilai-group/lejepa reference
@@ -134,7 +154,9 @@ fn sigreg_matches_lejepa_reference() {
         let mut s = seed;
         (0..count)
             .map(|_| {
-                s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                s = s
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 (s >> 33) as f32 / (1u64 << 31) as f32 - 1.0
             })
             .collect()

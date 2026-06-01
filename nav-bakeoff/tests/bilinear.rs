@@ -13,7 +13,10 @@ use sedenion::Sedenion;
 #[test]
 fn attitude_block_is_quaternion_native() {
     let r = attitude_block_residual([0.3, -0.2, 0.15]);
-    assert!(r < 1e-5, "attitude block should be quaternion-native, got ρ={r}");
+    assert!(
+        r < 1e-5,
+        "attitude block should be quaternion-native, got ρ={r}"
+    );
 }
 
 /// The full strapdown coupling must NOT lie in the sedenion-reachable subspace:
@@ -35,7 +38,11 @@ fn off_quaternion_generators_add_little() {
     let rf = residual(&a, &generators(16)).rho;
     let rq = residual(&a, &generators(4)).rho;
     assert!(rq - rf >= -1e-9, "full must not be worse than the subset");
-    assert!(rq - rf < 0.1, "off-quaternion gens unexpectedly valuable: Δρ={}", rq - rf);
+    assert!(
+        rq - rf < 0.1,
+        "off-quaternion gens unexpectedly valuable: Δρ={}",
+        rq - rf
+    );
 }
 
 /// Reachable subspace dimensions are the documented invariants.
@@ -54,5 +61,9 @@ fn zero_divisor_operator_is_singular() {
     c[10] = 1.0; // e3 + e10
     let s = Sedenion::new(c);
     let d = operator_diagnostics(&s);
-    assert!(d.sigma_min < 1e-4, "zero divisor L_a should be singular, σ_min={}", d.sigma_min);
+    assert!(
+        d.sigma_min < 1e-4,
+        "zero divisor L_a should be singular, σ_min={}",
+        d.sigma_min
+    );
 }

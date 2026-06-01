@@ -18,7 +18,12 @@ fn noise_free_baseline_does_not_drift() {
     let dt = 0.02;
     let steps = 5000; // 100 s
     let traj = generate(1, steps, dt, &params);
-    let cfg = Config { dt, fix_interval: None, fix_sigma: 5.0, lambda: 0.0 };
+    let cfg = Config {
+        dt,
+        fix_interval: None,
+        fix_sigma: 5.0,
+        lambda: 0.0,
+    };
     let err = run(&traj, &params, &cfg, false, 1);
     let final_err = *err.last().unwrap();
     assert!(
@@ -36,10 +41,18 @@ fn sukf_lambda_zero_equals_baseline() {
     let dt = 0.02;
     let steps = 3000;
     let traj = generate(7, steps, dt, &params);
-    let cfg = Config { dt, fix_interval: Some(30.0), fix_sigma: 5.0, lambda: 0.0 };
+    let cfg = Config {
+        dt,
+        fix_interval: Some(30.0),
+        fix_sigma: 5.0,
+        lambda: 0.0,
+    };
     let base = run(&traj, &params, &cfg, false, 7);
     let sed = run(&traj, &params, &cfg, true, 7);
     for (b, s) in base.iter().zip(sed.iter()) {
-        assert!((b - s).abs() < 1e-9, "λ=0 SUKF diverged from baseline: {b} vs {s}");
+        assert!(
+            (b - s).abs() < 1e-9,
+            "λ=0 SUKF diverged from baseline: {b} vs {s}"
+        );
     }
 }

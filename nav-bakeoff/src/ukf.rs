@@ -20,7 +20,14 @@ pub struct Ukf {
 impl Ukf {
     pub fn new(x0: Vec<f64>, p0: Mat) -> Self {
         let n = x0.len();
-        Ukf { n, x: x0, p: p0, alpha: 1e-3, beta: 2.0, kappa: 0.0 }
+        Ukf {
+            n,
+            x: x0,
+            p: p0,
+            alpha: 1e-3,
+            beta: 2.0,
+            kappa: 0.0,
+        }
     }
 
     fn lambda(&self) -> f64 {

@@ -63,9 +63,15 @@ fn bench_sedenion_zda(c: &mut Criterion) {
         9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
     ]);
 
-    c.bench_function("sedenion_zda_loss", |bench| {
+    c.bench_function("sedenion_zda_score", |bench| {
         bench.iter(|| {
-            let _ = black_box(a).zda_loss();
+            let _ = black_box(a).zda_score();
+        });
+    });
+
+    c.bench_function("sedenion_zda_loss_and_grad", |bench| {
+        bench.iter(|| {
+            let _ = black_box(a).zda_loss_and_grad();
         });
     });
 }
