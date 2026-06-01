@@ -168,6 +168,8 @@ pub struct LossWeights {
     pub var: f32,
     pub cov: f32,
     pub zda: f32,
+    /// SIGReg weight (handled in the training loop, not in `loss_and_grad`).
+    pub sig: f32,
 }
 
 pub struct LossOut {

@@ -13,7 +13,6 @@ pub fn linear_probe(
     n_classes: usize,
 ) -> f64 {
     let d = EMB + 1; // + bias
-    // Normal equations (XᵀX + ridge I) W = Xᵀ Y, with X rows = [emb, 1].
     let mut xtx = vec![0.0f64; d * d];
     let mut xty = vec![0.0f64; d * n_classes];
     for (e, &lab) in train_emb.iter().zip(train_lab) {
@@ -53,12 +52,12 @@ pub fn linear_probe(
             correct += 1;
         }
     }
-    correct as f64 / test_lab.len() as f64
+    correct as f64 / test_lab.len().max(1) as f64
 }
 
 /// Centered covariance (EMB×EMB, f64, row-major) of a set of embeddings.
 fn covariance(emb: &[[f32; EMB]]) -> Vec<f64> {
-    let n = emb.len() as f64;
+    let n = emb.len().max(2) as f64;
     let mut mean = [0.0f64; EMB];
     for e in emb {
         for d in 0..EMB {
@@ -89,11 +88,10 @@ pub fn collapse_metrics(emb: &[[f32; EMB]]) -> Collapse {
     let c = covariance(emb);
     let eig = sym_eigenvalues(&c, EMB);
     let trace: f64 = eig.iter().sum();
-    // effective rank
     let erank = if trace > 1e-30 {
         let mut h = 0.0;
         for &l in &eig {
-            let p = (l.max(0.0)) / trace;
+            let p = l.max(0.0) / trace;
             if p > 1e-12 {
                 h -= p * p.ln();
             }
@@ -102,7 +100,6 @@ pub fn collapse_metrics(emb: &[[f32; EMB]]) -> Collapse {
     } else {
         0.0
     };
-    // isotropy distance ‖C/tr − I/EMB‖_F
     let mut iso = 0.0;
     for i in 0..EMB {
         for j in 0..EMB {
@@ -112,7 +109,6 @@ pub fn collapse_metrics(emb: &[[f32; EMB]]) -> Collapse {
         }
     }
     let iso = iso.sqrt();
-    // min per-dim std
     let mut min_std = f64::INFINITY;
     for d in 0..EMB {
         min_std = min_std.min(c[d * EMB + d].max(0.0).sqrt());

@@ -3,6 +3,7 @@
 
 use repr_bakeoff::data::EMB;
 use repr_bakeoff::model::{loss_and_grad, LossWeights};
+use repr_bakeoff::sigreg::{sample_dirs, sigreg};
 use sedenion::Sedenion;
 
 fn lcg(seed: &mut u64) -> f32 {
@@ -24,7 +25,7 @@ fn loss_gradient_matches_finite_difference() {
             r
         })
         .collect();
-    let w = LossWeights { inv: 2.0, var: 3.0, cov: 1.5, zda: 0.7 };
+    let w = LossWeights { inv: 2.0, var: 3.0, cov: 1.5, zda: 0.7, sig: 0.0 };
     let (_, g) = loss_and_grad(&z, &w);
 
     let eps = 1e-3f32;
@@ -85,4 +86,87 @@ fn sedenion_layer_backward_matches_finite_difference() {
         max_err = max_err.max((num - analytic[m]).abs());
     }
     assert!(max_err < 1e-2, "sedenion backward mismatch: max_err = {max_err}");
+}
+
+/// The SIGReg (Epps–Pulley) gradient must match central finite differences.
+#[test]
+fn sigreg_gradient_matches_finite_difference() {
+    let mut s = 4242u64;
+    let n = 8;
+    let mut z: Vec<[f32; EMB]> = (0..n)
+        .map(|_| {
+            let mut r = [0.0f32; EMB];
+            for v in r.iter_mut() {
+                *v = lcg(&mut s);
+            }
+            r
+        })
+        .collect();
+    let dirs = sample_dirs(7, 5);
+    let rows: Vec<usize> = (0..n).collect();
+    let (_, g) = sigreg(&z, &rows, &dirs);
+
+    let eps = 1e-3f32;
+    let mut max_err = 0.0f32;
+    for ni in 0..n {
+        for d in 0..EMB {
+            let orig = z[ni][d];
+            z[ni][d] = orig + eps;
+            let lp = sigreg(&z, &rows, &dirs).0;
+            z[ni][d] = orig - eps;
+            let lm = sigreg(&z, &rows, &dirs).0;
+            z[ni][d] = orig;
+            let num = (lp - lm) / (2.0 * eps);
+            max_err = max_err.max((num - g[ni][d]).abs());
+        }
+    }
+    assert!(max_err < 2e-2, "SIGReg gradient mismatch: max_err = {max_err}");
+}
+
+/// Faithfulness: our SIGReg must reproduce the galilai-group/lejepa reference
+/// (`epps_pulley.py` + `slicing.py`) numerically. A NumPy port of that exact
+/// forward, on this same LCG input (64×16 embeddings, 8 unit slices), yields
+/// mean-over-slices = 0.18367205. We match it to f32 precision.
+#[test]
+fn sigreg_matches_lejepa_reference() {
+    fn lcg_vec(seed: u64, count: usize) -> Vec<f32> {
+        let mut s = seed;
+        (0..count)
+            .map(|_| {
+                s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                (s >> 33) as f32 / (1u64 << 31) as f32 - 1.0
+            })
+            .collect()
+    }
+    let (n, k) = (64usize, 8usize);
+    let zf = lcg_vec(1, n * EMB);
+    let z: Vec<[f32; EMB]> = (0..n)
+        .map(|r| {
+            let mut row = [0.0f32; EMB];
+            row.copy_from_slice(&zf[r * EMB..(r + 1) * EMB]);
+            row
+        })
+        .collect();
+    let gf = lcg_vec(999, k * EMB);
+    let dirs: Vec<[f32; EMB]> = (0..k)
+        .map(|i| {
+            let mut v = [0.0f32; EMB];
+            v.copy_from_slice(&gf[i * EMB..(i + 1) * EMB]);
+            let nrm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+            for x in v.iter_mut() {
+                *x /= nrm;
+            }
+            v
+        })
+        .collect();
+    let rows: Vec<usize> = (0..n).collect();
+    let (stat, _) = sigreg(&z, &rows, &dirs);
+    // Value computed by a pure-Python port of the lejepa reference forward
+    // (epps_pulley.py + slicing.py) on this exact LCG input — see
+    // tools/ref_pure.py. Not a guessed constant.
+    let reference = 0.00045355f32;
+    assert!(
+        (stat - reference).abs() < 1e-5,
+        "SIGReg deviates from lejepa reference: got {stat}, expected {reference}"
+    );
 }

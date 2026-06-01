@@ -27,9 +27,10 @@ fn run(
     seeds: u64,
     make_data: impl Fn(u64) -> Dataset,
 ) {
-    let base = |zda: f32| LossWeights { inv: 25.0, var: 25.0, cov: 4.0, zda };
+    // LeJEPA-faithful objective: invariance + λ·SIGReg (Epps–Pulley). ZDA per-arm.
+    let base = |zda: f32| LossWeights { inv: 25.0, var: 0.0, cov: 0.0, zda, sig: 1.0 };
     let arms = [
-        Arm { name: "Real baseline (VICReg)", sed: false, zda: 0.0 },
+        Arm { name: "Real baseline (SIGReg)", sed: false, zda: 0.0 },
         Arm { name: "Sedenion  λ_zda=0.0   ", sed: true, zda: 0.0 },
         Arm { name: "Sedenion  λ_zda=0.1   ", sed: true, zda: 0.1 },
         Arm { name: "Sedenion  λ_zda=1.0   ", sed: true, zda: 1.0 },
@@ -42,8 +43,8 @@ fn run(
         100.0 / n_classes as f64
     );
     println!(
-        "{:<24}  {:>6}  {:>9}  {:>8}  {:>9}  {:>8}",
-        "arm", "params", "probe_acc", "eff_rank", "isotropy↓", "min_std"
+        "{:<24}  {:>6}  {:>9}  {:>8}  {:>10}  {:>9}",
+        "arm", "params", "probe_acc", "eff_rank", "gaussian↓", "isotropy↓"
     );
     // Build each seed's dataset once and reuse it across all arms.
     let mut per_arm: Vec<Vec<Result>> = (0..arms.len()).map(|_| Vec::new()).collect();
@@ -57,13 +58,13 @@ fn run(
     for (ai, a) in arms.iter().enumerate() {
         let rs = &per_arm[ai];
         println!(
-            "{:<24}  {:>6}  {:>8.1}%  {:>8.2}  {:>9.4}  {:>8.4}",
+            "{:<24}  {:>6}  {:>8.1}%  {:>8.2}  {:>10.4}  {:>9.4}",
             a.name,
             rs[0].n_params,
             100.0 * avg(&rs, |r| r.probe_acc),
             avg(&rs, |r| r.collapse.effective_rank),
+            avg(&rs, |r| r.gaussianity),
             avg(&rs, |r| r.collapse.isotropy_dist),
-            avg(&rs, |r| r.collapse.min_std),
         );
     }
 }
@@ -74,7 +75,7 @@ fn main() {
     if mnist_mode {
         let raw = mnist::load_raw("data");
         run("REAL DATA — MNIST (frozen random backbone 784→256)", 10, 300, 0.15, 3, |seed| {
-            mnist::build(&raw, seed, 2000, 2000)
+            mnist::build(&raw, seed, 1200, 1200)
         });
     } else {
         run("SYNTHETIC — 10-class two-view", 10, 300, 0.15, 4, |seed| {

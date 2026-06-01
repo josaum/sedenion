@@ -3,18 +3,27 @@
 use crate::data::{Dataset, EMB};
 use crate::metrics::{collapse_metrics, linear_probe, Collapse};
 use crate::model::{loss_and_grad, Encoder, LossWeights};
+use crate::sigreg::{gaussianity, sample_dirs, sigreg};
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 
 pub struct Result {
     pub n_params: usize,
     pub final_loss: f32,
-    pub final_cov: f32,
-    pub final_zda: f32,
     pub probe_acc: f64,
     pub collapse: Collapse,
+    /// Held-out Gaussianity (mean Epps–Pulley statistic; 0 = isotropic Gaussian).
+    pub gaussianity: f64,
 }
 
+/// SIGReg sketch settings.
+const SIG_DIRS: usize = 16; // random projection directions per step
+const SIG_SUB: usize = 512; // sketch subsample size (caps the O(n²) EP cost)
+
 /// Full-batch gradient descent, then evaluate. Both arms use identical
-/// hyperparameters; only the encoder and `w.zda` differ.
+/// hyperparameters; only the encoder and the regularizer weights differ. When
+/// `w.sig > 0`, SIGReg (Epps–Pulley) replaces the VICReg variance/covariance
+/// terms as the anti-collapse / isotropy driver.
 pub fn train_and_eval(
     mut enc: Encoder,
     data: &Dataset,
@@ -24,41 +33,54 @@ pub fn train_and_eval(
 ) -> Result {
     let n_params = enc.n_params();
     let mut final_loss = 0.0;
-    let mut final_cov = 0.0;
-    let mut final_zda = 0.0;
+    let n_rows = data.train.len() * 2;
+    let mut rng = StdRng::seed_from_u64(0x5165_0000 ^ n_params as u64);
 
-    for _ in 0..epochs {
-        // Forward both views of every training sample → 2N embedding rows.
-        let mut z = Vec::with_capacity(data.train.len() * 2);
-        let mut xs = Vec::with_capacity(data.train.len() * 2);
+    for epoch in 0..epochs {
+        let mut z = Vec::with_capacity(n_rows);
+        let mut xs = Vec::with_capacity(n_rows);
         for s in &data.train {
             z.push(enc.forward(&s.view_a));
             xs.push(&s.view_a);
             z.push(enc.forward(&s.view_b));
             xs.push(&s.view_b);
         }
-        let (lo, g) = loss_and_grad(&z, w);
+        // Base loss: invariance (+ optional VICReg var/cov) (+ optional ZDA).
+        let (lo, mut g) = loss_and_grad(&z, w);
         final_loss = lo.total;
-        final_cov = lo.cov;
-        final_zda = lo.zda;
+
+        // SIGReg term (the faithful LeJEPA objective) added in the loop.
+        if w.sig > 0.0 {
+            let dirs = sample_dirs(epoch as u64 ^ 0xD125, SIG_DIRS);
+            let rows: Vec<usize> = if n_rows <= SIG_SUB {
+                (0..n_rows).collect()
+            } else {
+                (0..SIG_SUB).map(|_| rng.gen_range(0..n_rows)).collect()
+            };
+            let (sl, sg) = sigreg(&z, &rows, &dirs);
+            final_loss += w.sig * sl;
+            for i in 0..n_rows {
+                for d in 0..EMB {
+                    g[i][d] += w.sig * sg[i][d];
+                }
+            }
+        }
 
         enc.zero_grad();
         for (xi, gi) in xs.iter().zip(g.iter()) {
             enc.backward(xi, gi);
         }
-        // average gradient over rows
-        enc.step(lr, 1.0 / (data.train.len() as f32 * 2.0));
+        enc.step(lr, 1.0 / n_rows as f32);
     }
 
-    // Evaluate on held-out data using view_a as the representation.
     let train_emb: Vec<[f32; EMB]> = data.train.iter().map(|s| enc.forward(&s.view_a)).collect();
     let train_lab: Vec<usize> = data.train.iter().map(|s| s.label).collect();
     let test_emb: Vec<[f32; EMB]> = data.test.iter().map(|s| enc.forward(&s.view_a)).collect();
     let test_lab: Vec<usize> = data.test.iter().map(|s| s.label).collect();
 
-    let probe_acc =
-        linear_probe(&train_emb, &train_lab, &test_emb, &test_lab, data.n_classes);
+    let probe_acc = linear_probe(&train_emb, &train_lab, &test_emb, &test_lab, data.n_classes);
     let collapse = collapse_metrics(&test_emb);
+    let gauss = gaussianity(&test_emb, 0xE7A1 ^ n_params as u64, 32);
 
-    Result { n_params, final_loss, final_cov, final_zda, probe_acc, collapse }
+    Result { n_params, final_loss, probe_acc, collapse, gaussianity: gauss }
 }
