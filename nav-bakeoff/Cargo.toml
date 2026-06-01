@@ -7,6 +7,9 @@ description = "Head-to-head bake-off: standard UKF vs. Sedenion-UKF (TESSERACT-B
 [dependencies]
 sedenion = { path = "../sedenion" }
 rand = "0.8"
+arrow = { version = "58.3.0", default-features = false, features = ["ipc", "arrow-ipc"] }
+memmap2 = "0.9.10"
+bytes = "1.11.1"
 
 [[bin]]
 name = "nav-bakeoff"
@@ -15,3 +18,11 @@ path = "src/main.rs"
 [[bin]]
 name = "bilinear-probe"
 path = "src/bin/bilinear_probe.rs"
+
+[[bin]]
+name = "nav-repr-bakeoff"
+path = "src/bin/nav_repr_bakeoff.rs"
+
+[[bin]]
+name = "export-uav-arrow"
+path = "src/bin/export_uav_arrow.rs"

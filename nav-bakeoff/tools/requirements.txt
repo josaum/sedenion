@@ -1,0 +1,10 @@
+# Offline ROS-bag -> Arrow extraction for the nav-repr-bakeoff real-data path.
+# Recommended: a Python 3.12 venv via uv (rosbags/pyarrow lag the newest CPython).
+#
+#   uv venv --python 3.12 .rosenv
+#   uv pip install --python .rosenv/bin/python -r tools/requirements.txt
+#   .rosenv/bin/python tools/rosbag_to_arrow.py motion/line.bag out/line.arrow --rate 50 --report
+#
+pyarrow>=14
+rosbags>=0.9
+numpy>=1.24

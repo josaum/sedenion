@@ -19,6 +19,7 @@ cargo test --release                                      # nav-bakeoff guardrai
 cargo run --release --bin nav-bakeoff                     # SUKF vs UKF bakeoff (linear MEMS)
 cargo run --release --bin nav-bakeoff -- 16 300 --duffing # nonlinear (Duffing) MEMS
 cargo run --release --bin bilinear-probe                  # does physics live in the algebra?
+cargo run --release --bin nav-repr-bakeoff                # learned 16-D MEMS representations
 ```
 
 ---
@@ -91,6 +92,55 @@ Control — attitude block alone, vs 4×4 quaternion operators:  ρ = 0.0
 - Zero divisors give a **singular** `L_a` (σ_min = 0, κ = ∞) — blind directions to
   gate against, not anti-jamming sinks.
 
+### 3. The representation probe — can sedenions learn MEMS error latents? (`src/bin/nav_repr_bakeoff.rs`)
+
+This is the constructive follow-up to the negative state-manifold result. It keeps
+the navigation state classical and asks whether a compact 16-D latent can predict
+navigation-relevant hidden quantities from short IMU windows:
+
+- input: three chunks of a 2 s accelerometer window, summarized as 3 × 16 features;
+- target: current accelerometer bias xyz plus 10 s future dead-reckoning drift xyz;
+- models: train mean, supervised dense `48 -> 16` MLP, supervised sedenion
+  `Σ (L_i x_i + x_i R_i)`, sedenion plus auto-ZDA, JEPA-frozen probes, and
+  JEPA-pretrained + supervised-finetuned variants;
+- JEPA setup: context window predicts a held-out future-window latent through a
+  predictor head, with the future encoder stopped-gradient in the I-JEPA/Video-JEPA
+  spirit; the downstream bias/drift head is then trained either frozen or
+  fine-tuned.
+- metrics: normalized MSE plus physical bias RMSE and drift RMSE on held-out seeds;
+- filter-in-loop check: feed the learned bias estimate as a UKF pseudo-measurement
+  with uncertainty derived from train bias RMSE, then report terminal dead-reckoning
+  RMSE without external position fixes.
+
+Run it with:
+
+```bash
+cargo run --release --bin nav-repr-bakeoff
+cargo run --release --bin nav-repr-bakeoff -- 64 16 180 --duffing
+```
+
+This probe does **not** rescue the claim that sedenions are navigation states. It
+tests the narrower, more plausible claim that the Cayley-Dickson product can act as
+a structured representation prior for MEMS error learning.
+
+Current default non-Duffing result shape, 64 train seeds / 16 held-out seeds /
+180 s:
+
+| model | params | proxy test MSE | bias-aided terminal RMSE |
+|---|--:|--:|--:|
+| Dead-reckoning UKF / train mean | 0 | 1.3711 | 531.46 m |
+| Dense `48 -> 16` | 886 | 0.9028 | **452.64 m** |
+| Dense JEPA frozen | 886 | 1.3385 | 525.46 m |
+| Dense JEPA + fine-tune | 886 | **0.8513** | 459.84 m |
+| Sedenion 16D | 214 | 1.2613 | 518.41 m |
+| Sedenion 16D + auto-ZDA | 214 | 1.2496 | 518.64 m |
+| Sedenion JEPA + fine-tune | 214 | 1.2525 | 520.78 m |
+
+So the current answer is mixed but sharper: JEPA pretraining helps the dense proxy
+task after fine-tuning, but the best filter-in-loop RMSE is still the supervised
+dense model. Frozen JEPA alone is not enough, and the sedenion variants do not yet
+produce a useful navigation representation.
+
 ---
 
 ## What's in the box
@@ -103,10 +153,12 @@ nav-bakeoff/
     sim.rs                    synthetic 3-D trajectory + MEMS IMU model (+Duffing)
     ukf.rs                    generic additive-noise UKF (shared by both estimators)
     filters.rs                strapdown process model, baseline vs. sedenion + ZDA
+    nav_repr.rs               learned 16-D inertial representation bakeoff
     linalg.rs                 tiny dense f64 linalg (Cholesky, solve, Jacobi eig, SVD)
     bilinear.rs               strapdown coupling A(ω̄), reachable-subspace projection, ρ
     main.rs                   the bakeoff harness  →  bakeoff_results.csv
     bin/bilinear_probe.rs     the ρ / operator-conditioning probe
+    bin/nav_repr_bakeoff.rs   dense vs. sedenion latent representation probe
   tests/
     sanity.rs                 noise-free <1 mm/100 s; λ=0 ≡ baseline
     bilinear.rs               attitude ρ≈0; full ρ>0.5; reachable dim = 31; zero-div singular
@@ -133,11 +185,14 @@ paper is a claim-to-artifact map. The headline figures:
 |---|---|
 | Bakeoff RMSE tables | `cargo run --release --bin nav-bakeoff` and `cargo run --release --bin nav-bakeoff -- 16 300 --duffing` |
 | ρ ≈ 0.90–0.96, dim 31, attitude ρ = 0 | `cargo run --release --bin bilinear-probe` |
+| Learned MEMS representation and filter-in-loop metrics | `cargo run --release --bin nav-repr-bakeoff` |
 | `L_a` correct / non-assoc / skew / adjoint | `(cd ../sedenion && cargo test --release)` |
 | λ=0 ≡ baseline; noise-free < 1 mm | `cargo test --release` |
 
 The bakeoff writes `bakeoff_results.csv`
-(`mode,estimator,lambda,t_s,rmse_horizontal_m`) for plotting.
+(`mode,estimator,lambda,t_s,rmse_horizontal_m`) for plotting. The representation
+probe writes `nav_repr_results.csv` for proxy metrics and
+`nav_repr_filter_results.csv` for the filter-in-loop bias-aiding check.
 
 ---
 

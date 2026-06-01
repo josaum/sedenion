@@ -1,0 +1,591 @@
+html,
+body,
+#app {
+  --panel: color-mix(in srgb, #151c1a 78%, transparent);
+  --panel-strong: color-mix(in srgb, #101412 88%, transparent);
+  --line: rgba(244, 231, 203, 0.16);
+  --text: #f7efe2;
+  --muted: #b8c4bd;
+  --dim: #82938c;
+  --gold: #d7ad55;
+  --mint: #74e6ce;
+  --danger: #e66d55;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #111513;
+  color: var(--text);
+  font-family: "Avenir Next", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 55%, transparent 0 48%, rgba(42, 55, 48, 0.16) 100%),
+    linear-gradient(180deg, rgba(255, 244, 205, 0.1), transparent 34%, rgba(26, 34, 29, 0.16));
+  z-index: 1;
+}
+
+#app > :not(canvas) {
+  z-index: 2;
+}
+
+.topbar {
+  position: fixed;
+  left: 18px;
+  right: 18px;
+  top: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.brand,
+.hud,
+.mission,
+.layers,
+.stats,
+.readout,
+.controls,
+.drop {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px) saturate(1.12);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 8px;
+}
+
+.mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow:
+    0 0 0 4px rgba(215, 173, 85, 0.12),
+    0 0 22px rgba(215, 173, 85, 0.88);
+}
+
+.brand strong {
+  display: block;
+  font-size: 14px;
+  line-height: 18px;
+  letter-spacing: 0;
+  font-weight: 760;
+}
+
+.brand span:not(.mark),
+.stats,
+.readout,
+.drop span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.stats {
+  min-width: 220px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  text-align: right;
+  white-space: pre-line;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(82px, 1fr));
+  gap: 1px;
+  min-width: min(720px, calc(100vw - 520px));
+  overflow: hidden;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.hud span {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  background: rgba(116, 230, 206, 0.035);
+  text-align: center;
+}
+
+.hud b {
+  color: var(--text);
+  font-size: 17px;
+  line-height: 19px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud small {
+  color: var(--dim);
+  font-size: 9px;
+  line-height: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mission {
+  position: fixed;
+  left: 18px;
+  top: 98px;
+  width: min(330px, calc(100vw - 36px));
+  padding: 13px;
+  border-radius: 8px;
+  z-index: 4;
+}
+
+.mission > div {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.mission span,
+.layers strong {
+  color: var(--gold);
+  font-size: 10px;
+  line-height: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.mission strong {
+  font-size: 15px;
+  line-height: 19px;
+}
+
+.mission p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.mission dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.mission dt {
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mission dd {
+  margin: 0;
+  color: var(--text);
+  text-align: right;
+}
+
+.layers {
+  position: fixed;
+  right: 18px;
+  top: 98px;
+  display: grid;
+  gap: 7px;
+  width: 136px;
+  padding: 11px;
+  border-radius: 8px;
+  z-index: 4;
+}
+
+.layers button,
+.camera-presets button {
+  border: 1px solid rgba(116, 230, 206, 0.16);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(116, 230, 206, 0.045);
+  cursor: pointer;
+}
+
+.layers button {
+  height: 29px;
+  font-size: 11px;
+  text-align: left;
+  padding: 0 9px;
+}
+
+.layers button[aria-pressed="true"],
+.camera-presets button[aria-pressed="true"] {
+  border-color: rgba(116, 230, 206, 0.55);
+  color: var(--text);
+  background: rgba(116, 230, 206, 0.15);
+  box-shadow: inset 0 0 18px rgba(116, 230, 206, 0.08);
+}
+
+.controls {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: auto minmax(120px, 150px) minmax(220px, 300px) minmax(250px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  width: min(calc(100vw - 28px), 1040px);
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--panel-strong);
+  z-index: 4;
+}
+
+.controls > button {
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #efc66c, var(--gold));
+  color: #18130a;
+  padding: 0 16px;
+  cursor: pointer;
+  box-shadow:
+    0 7px 18px rgba(215, 173, 85, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  font-weight: 700;
+}
+
+.controls > button:hover,
+.layers button:hover,
+.camera-presets button:hover {
+  filter: brightness(1.06);
+}
+
+.controls > button:active,
+.layers button:active,
+.camera-presets button:active {
+  transform: translateY(1px);
+}
+
+.controls label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.controls label > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.controls output {
+  color: var(--text);
+  font-weight: 760;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--mint);
+}
+
+.camera-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.camera-presets button {
+  height: 34px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.presentation-toggle {
+  min-width: 112px;
+}
+
+#app.presentation .stats,
+#app.presentation .layers,
+#app.presentation .readout,
+#app.presentation .drop {
+  display: none;
+}
+
+#app.presentation .mission {
+  width: min(360px, calc(100vw - 36px));
+}
+
+#app.presentation .controls {
+  width: min(calc(100vw - 28px), 980px);
+  grid-template-columns: auto minmax(120px, 150px) minmax(220px, 300px) minmax(250px, auto) auto;
+}
+
+.timeline-glow {
+  position: fixed;
+  left: 50%;
+  bottom: 31px;
+  width: min(420px, calc(100vw - 230px));
+  height: 1px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(116, 230, 206, 0.52), transparent);
+  box-shadow: 0 0 20px rgba(116, 230, 206, 0.26);
+  z-index: 3;
+}
+
+.readout {
+  position: fixed;
+  right: 18px;
+  bottom: 82px;
+  width: min(300px, calc(100vw - 36px));
+  padding: 12px 13px;
+  border-radius: 8px;
+  z-index: 4;
+}
+
+.readout dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 16px;
+  margin: 0;
+}
+
+.readout dt {
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+
+.readout dd {
+  margin: 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.drop {
+  position: fixed;
+  left: 18px;
+  bottom: 82px;
+  width: min(310px, calc(100vw - 36px));
+  padding: 12px 13px;
+  border-radius: 8px;
+  border-left-color: color-mix(in srgb, var(--mint) 55%, var(--line));
+  z-index: 4;
+}
+
+.drop strong {
+  display: block;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text);
+}
+
+.drop.hot {
+  border-color: var(--mint);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(116, 230, 206, 0.18),
+    0 0 40px rgba(116, 230, 206, 0.14);
+}
+
+.topbar::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 90px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(17, 21, 19, 0.58), transparent);
+  z-index: -1;
+}
+
+.instrument {
+  --bank: 0deg;
+  --climb: 0px;
+  --pulse: 0.5;
+  position: fixed;
+  left: 50%;
+  top: 48%;
+  width: 156px;
+  height: 156px;
+  transform: translate(-50%, -50%) rotate(var(--bank));
+  pointer-events: none;
+  opacity: 0.48;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 12px rgba(116, 230, 206, 0.12));
+}
+
+.instrument::before,
+.instrument::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.instrument::before {
+  border: 1px solid rgba(116, 230, 206, 0.18);
+  box-shadow: 0 0 42px rgba(116, 230, 206, calc(var(--pulse) * 0.16));
+}
+
+.instrument::after {
+  inset: 49% 20% auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(116, 230, 206, 0.8), transparent);
+}
+
+.instrument::after,
+.instrument .horizon,
+.instrument .ticks i {
+  animation: instrument-breathe 2.6s ease-in-out infinite;
+}
+
+.instrument .horizon {
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  top: calc(50% + var(--climb));
+  height: 1px;
+  background: rgba(215, 173, 85, 0.74);
+}
+
+.instrument .horizon span {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 18px rgba(215, 173, 85, 0.6);
+}
+
+.instrument .ticks {
+  position: absolute;
+  inset: 17px;
+}
+
+.instrument .ticks i {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 10px;
+  background: rgba(116, 230, 206, 0.46);
+  transform-origin: 0 61px;
+}
+
+.instrument .ticks i:nth-child(1) { transform: rotate(-45deg); }
+.instrument .ticks i:nth-child(2) { transform: rotate(-22deg); }
+.instrument .ticks i:nth-child(3) { transform: rotate(0deg); height: 14px; }
+.instrument .ticks i:nth-child(4) { transform: rotate(22deg); }
+.instrument .ticks i:nth-child(5) { transform: rotate(45deg); }
+
+@keyframes instrument-breathe {
+  0%, 100% {
+    opacity: 0.52;
+  }
+  50% {
+    opacity: 0.92;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .instrument::after,
+  .instrument .horizon,
+  .instrument .ticks i {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    left: 10px;
+    right: 10px;
+    top: 10px;
+  }
+
+  .stats {
+    display: none;
+  }
+
+  .hud {
+    display: none;
+  }
+
+  .mission,
+  .layers {
+    display: none;
+  }
+
+  .controls {
+    grid-template-columns: 1fr 1fr;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    transform: none;
+    width: auto;
+  }
+
+  #app.presentation .controls {
+    grid-template-columns: 1fr 1fr;
+    width: auto;
+  }
+
+  .controls label:nth-of-type(2) {
+    grid-column: 1 / -1;
+  }
+
+  .camera-presets {
+    grid-column: 1 / -1;
+  }
+
+  .presentation-toggle {
+    grid-column: 1 / -1;
+  }
+
+  .timeline-glow {
+    display: none;
+  }
+
+  .readout,
+  .drop {
+    display: none;
+  }
+}

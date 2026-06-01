@@ -118,6 +118,24 @@ pub fn run(
     use_sedenion: bool,
     seed: u64,
 ) -> Vec<f64> {
+    run_with_bias_aid(samples, p, cfg, use_sedenion, seed, 1.0, |_, _| None)
+}
+
+/// Run one estimator with an optional learned accelerometer-bias pseudo-
+/// measurement. `bias_aid` receives the current sample index and the full
+/// trajectory, and may return a physical bias estimate in m/s².
+pub fn run_with_bias_aid<F>(
+    samples: &[Sample],
+    p: &ImuParams,
+    cfg: &Config,
+    use_sedenion: bool,
+    seed: u64,
+    bias_sigma: f64,
+    mut bias_aid: F,
+) -> Vec<f64>
+where
+    F: FnMut(usize, &[Sample]) -> Option<[f64; 3]>,
+{
     let q = process_noise(p, cfg.dt);
     let x0 = vec![0.0; N]; // start at origin, zero velocity, zero bias prior
     let mut ukf = Ukf::new(x0, initial_cov(p));
@@ -131,11 +149,18 @@ pub fn run(
         }
         r
     };
+    let r_bias = {
+        let mut r = Mat::zeros(3, 3);
+        for i in 0..3 {
+            r.set(i, i, bias_sigma.max(1e-6).powi(2));
+        }
+        r
+    };
 
     let mut errors = Vec::with_capacity(samples.len());
     let mut next_fix = cfg.fix_interval; // first fix time
 
-    for s in samples {
+    for (idx, s) in samples.iter().enumerate() {
         let accel = s.accel_meas;
         let dt = cfg.dt;
         ukf.predict(|x| nav_step(x, accel, dt), &q);
@@ -160,6 +185,10 @@ pub fn run(
                     next_fix = Some(nf + iv);
                 }
             }
+        }
+
+        if let Some(b) = bias_aid(idx, samples) {
+            ukf.update(&b, |x| vec![x[6], x[7], x[8]], &r_bias);
         }
 
         let dx = ukf.x[0] - s.truth[0];

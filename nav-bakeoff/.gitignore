@@ -1,2 +1,14 @@
 /target
 bakeoff_results.csv
+nav_repr_results.csv
+nav_repr_filter_results.csv
+
+# Generated Arrow fixtures / exports
+*.arrow
+*.ipc
+*.feather
+
+# Python extractor caches (tools/)
+__pycache__/
+*.pyc
+

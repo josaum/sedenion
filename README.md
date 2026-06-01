@@ -150,6 +150,19 @@ See [`nav-bakeoff/README.md`](nav-bakeoff/README.md),
 [`nav-bakeoff/PAPER.md`](nav-bakeoff/PAPER.md), and
 [`nav-bakeoff/OPERATOR_ALGEBRA.md`](nav-bakeoff/OPERATOR_ALGEBRA.md).
 
+### UAV Flight Viewer: `uav-viewer/`
+
+`uav-viewer` is a browser-based Three.js viewer for Arrow IPC flight exports from
+`nav-bakeoff`. It is not a new navigation result; it is an inspection and briefing
+surface for GPS-denied UAV trajectories, with pt-BR controls, orbit/top/command
+camera presets, trajectory/vector/range layers, and a daylight test-range scene.
+
+![UAV Flight Viewer daylight scene](docs/assets/uav-viewer-daylight.jpg)
+
+![UAV Flight Viewer presentation mode](docs/assets/uav-viewer-presentation.jpg)
+
+![UAV Flight Viewer mobile layout](docs/assets/uav-viewer-mobile.jpg)
+
 ## Reproduce
 
 Because the crates are independent, `cd` into each one.
@@ -194,6 +207,7 @@ cargo test --release
 cargo run --release --bin nav-bakeoff
 cargo run --release --bin nav-bakeoff -- 16 300 --duffing
 cargo run --release --bin bilinear-probe
+cargo run --release --bin nav-repr-bakeoff
 ```
 
 Expected current result shape:
@@ -202,6 +216,11 @@ Expected current result shape:
 Linear aided terminal: 20.8 m baseline/λ=0, 35.0 m λ=1
 Duffing aided terminal: 19.4 m baseline/λ=0, 23.1 m λ=1
 Projection residual: ρ_full ≈ 0.90-0.96
+Nav repr: dense 16-D is the current best held-out predictor family;
+JEPA-pretrain + fine-tune improves dense proxy MSE, while the best filter-in-loop
+RMSE is still supervised dense. Current 180 s non-Duffing filter check: dead
+reckoning 531.46 m; supervised dense bias aid 452.64 m; dense JEPA+fine-tune
+459.84 m; sedenion+auto-ZDA 518.64 m.
 ```
 
 ## Evidence Map
@@ -215,6 +234,7 @@ Projection residual: ρ_full ≈ 0.90-0.96
 | Auto-ZDA improves the controlled representation probe | `cargo run --release` and `cargo run --release -- mnist` in `repr-bakeoff/` |
 | Sedenion navigation state projection does not help the tested UKF | `cargo run --release --bin nav-bakeoff` in `nav-bakeoff/` |
 | Strapdown physics mostly does not live in the sedenion operator subspace | `cargo run --release --bin bilinear-probe` in `nav-bakeoff/` |
+| Sedenions as learned MEMS representations are tested separately from state replacement | `cargo run --release --bin nav-repr-bakeoff` in `nav-bakeoff/` |
 
 ## Repository Layout
 
@@ -236,6 +256,8 @@ Projection residual: ρ_full ≈ 0.90-0.96
 │   ├── PAPER.md                 full writeup
 │   ├── OPERATOR_ALGEBRA.md      `L_a/R_a` and projection-residual notes
 │   └── README.md                navigation results
+├── uav-viewer/                  Three.js Arrow IPC flight viewer
+├── docs/assets/                 README screenshots and visual assets
 ├── sedenion_lejepa.md           representation-learning design notes
 ├── MEMORY.md                    project decisions and current conclusions
 └── memory/                      daily raw notes

@@ -1,0 +1,17 @@
+# Dependencies / build output
+node_modules/
+dist/
+
+# Vite / TS caches
+.vite/
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated default flight (regenerate with:
+#   cargo run --release --bin export-uav-arrow -- uav-viewer/public/flights/nav-default.arrow)
+public/flights/*.arrow
+!public/flights/.gitkeep

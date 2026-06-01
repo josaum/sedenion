@@ -41,10 +41,14 @@ impl Default for ImuParams {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Sample {
     pub t: f64,
     /// Accelerometer reading (true accel + bias + white noise), nav frame.
     pub accel_meas: [f64; 3],
+    /// Gyroscope reading, rad/s in the same resolved frame when available.
+    /// The synthetic accel-only harness leaves this at zero.
+    pub gyro_meas: [f64; 3],
     /// Ground-truth state, for scoring only (never fed to the filters).
     pub truth: [f64; N],
 }
@@ -104,6 +108,7 @@ pub fn generate(seed: u64, steps: usize, dt: f64, p: &ImuParams) -> Vec<Sample> 
         out.push(Sample {
             t,
             accel_meas,
+            gyro_meas: [0.0; 3],
             truth,
         });
     }

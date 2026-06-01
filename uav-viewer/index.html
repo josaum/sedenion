@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Visualizador de Voo VANT</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <div class="topbar">
+        <div class="brand">
+          <span class="mark"></span>
+          <div>
+            <strong>Campo VANT</strong>
+            <span>Visualizador de evidências de navegação</span>
+          </div>
+        </div>
+        <div class="hud" id="hud" aria-label="Telemetria de voo">
+          <span><b id="hudPhase">Aquisição</b><small>fase</small></span>
+          <span><b id="hudSpeed">0.0 m/s</b><small>veloc.</small></span>
+          <span><b id="hudAlt">0.0 m</b><small>alt</small></span>
+          <span><b id="hudDrift">--</b><small>erro nav</small></span>
+          <span><b id="hudLink">98%</b><small>enlace</small></span>
+        </div>
+        <div class="stats" id="stats"></div>
+      </div>
+      <section class="mission" aria-label="Status da missão">
+        <div>
+          <span>Cenário</span>
+          <strong>Voo em campo sem GPS</strong>
+        </div>
+        <p id="missionPhase">Adquirir trajetória, verificar telemetria e comparar evidências de navegação.</p>
+        <dl>
+          <dt>Sinal</dt><dd>GNSS negado</dd>
+          <dt>Modo</dt><dd>Inercial MEMS</dd>
+          <dt>Público</dt><dd>Apresentação de defesa</dd>
+        </dl>
+      </section>
+      <section class="layers" aria-label="Camadas de exibição">
+        <strong>Camadas</strong>
+        <button type="button" data-layer="trajectory" aria-pressed="true">Trajetória</button>
+        <button type="button" data-layer="vectors" aria-pressed="true">Vetores</button>
+        <button type="button" data-layer="airspace" aria-pressed="true">Espaço aéreo</button>
+        <button type="button" data-layer="range" aria-pressed="true">Campo</button>
+      </section>
+      <div class="instrument" id="instrument" aria-hidden="true">
+        <div class="horizon">
+          <span></span>
+        </div>
+        <div class="ticks">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="playPause" type="button" aria-label="Reproduzir ou pausar voo">Pausar</button>
+        <label>
+          <span>Velocidade <output id="playbackRate">0.75x</output></span>
+          <input id="speed" type="range" min="0.25" max="12" value="0.75" step="0.25" />
+        </label>
+        <label>
+          <span>Tempo</span>
+          <input id="scrub" type="range" min="0" max="1" value="0" step="0.0001" />
+        </label>
+        <div class="camera-presets" aria-label="Predefinições de câmera">
+          <button type="button" data-camera="chase" aria-pressed="false">Cauda</button>
+          <button type="button" data-camera="orbit" aria-pressed="true">Órbita</button>
+          <button type="button" data-camera="top" aria-pressed="false">Topo</button>
+          <button type="button" data-camera="command" aria-pressed="false">Comando</button>
+        </div>
+        <button id="presentationMode" class="presentation-toggle" type="button" aria-pressed="false">Apresentação</button>
+      </div>
+      <div class="timeline-glow" aria-hidden="true"></div>
+      <div class="readout" id="readout"></div>
+      <div class="drop" id="drop">
+        <strong>Solte Arrow IPC</strong>
+        <span>Use arquivos de rosbag_to_arrow.py ou public/flights/nav-default.arrow</span>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
