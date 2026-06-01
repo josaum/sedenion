@@ -1,38 +1,44 @@
 //! SIGReg — Sketched Isotropic Gaussian Regularization, implemented to match the
-//! LeJEPA reference (`galilai-group/lejepa`, `lejepa.py::sigreg_epps_pulley`):
+//! LeJEPA reference (`galilai-group/lejepa`, `epps_pulley.py` + `slicing.py`):
 //!
 //! ```python
-//! dirs = randn(D, P); dirs /= dirs.norm(dim=0)
-//! proj = z @ dirs
-//! proj = (proj - proj.mean(0)) / (proj.std(0) + 1e-6)         # per-slice standardize
-//! t = linspace(-5, 5, 17)
-//! ecf_re = cos(t*proj).mean(1); ecf_im = sin(t*proj).mean(1)
-//! target = w = exp(-t^2/2)
-//! loss = (w*((ecf_re-target)^2 + ecf_im^2)).mean()            # Epps–Pulley CF distance
+//! t = linspace(0, 3, 17)
+//! phi = exp(-t^2/2)
+//! weights = trapezoid(dt or 2*dt) * phi
+//! proj = z @ dirs   # raw projections, no standardization
+//! ecf_re = cos(t*proj).mean(); ecf_im = sin(t*proj).mean()
+//! loss = sum(weights * ((ecf_re - phi)^2 + ecf_im^2))
 //! ```
 //!
-//! i.e. for random unit directions, project, **standardize each slice**, and push
-//! the empirical characteristic function of each slice toward the standard-normal
-//! CF. Standardization makes the test scale/shift-invariant (it checks Gaussian
-//! *shape*); collapse is still penalized because a degenerate slice standardizes
-//! to all-zeros, whose CF (≡1) is far from `e^{-t²/2}`.
-//!
-//! We implement the same forward and the exact gradient (including the
-//! batch-norm-style backward through the standardization), finite-difference
+//! We implement the same forward and the exact gradient, finite-difference
 //! checked in `tests/sanity.rs`.
 
 use crate::data::EMB;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-const NF_T: usize = 17; // CF frequencies, linspace(-5,5,17)
+const T_MAX: f32 = 3.0;
+const NF_T: usize = 17; // CF frequencies, linspace(0, T_MAX, 17)
 
 fn freqs() -> [f32; NF_T] {
     let mut t = [0.0f32; NF_T];
     for (i, ti) in t.iter_mut().enumerate() {
-        *ti = -5.0 + 10.0 * (i as f32) / (NF_T as f32 - 1.0);
+        *ti = T_MAX * (i as f32) / (NF_T as f32 - 1.0);
     }
     t
+}
+
+fn trapezoid_weights() -> [f32; NF_T] {
+    let dt = T_MAX / (NF_T as f32 - 1.0);
+    let mut w = [0.0f32; NF_T];
+    for (i, wi) in w.iter_mut().enumerate() {
+        *wi = if i == 0 || i == NF_T - 1 {
+            dt
+        } else {
+            2.0 * dt
+        };
+    }
+    w
 }
 
 fn gaussian(rng: &mut StdRng) -> f32 {
@@ -65,55 +71,32 @@ fn dot(v: &[f32; EMB], z: &[f32; EMB]) -> f32 {
     (0..EMB).map(|d| v[d] * z[d]).sum()
 }
 
-/// One-slice Epps–Pulley forward + gradient w.r.t. the *raw* projections `p`.
+/// One-slice Epps–Pulley forward + gradient w.r.t. the raw projections `p`.
 /// Returns (loss, dloss/dp). Matches the reference forward exactly.
 fn ep_slice(p: &[f32]) -> (f32, Vec<f32>) {
     let m = p.len();
     let mf = m as f32;
-    // standardize (unbiased std, additive eps) — as in the reference.
-    let mean: f32 = p.iter().sum::<f32>() / mf;
-    let var: f32 = p.iter().map(|x| (x - mean) * (x - mean)).sum::<f32>() / (mf - 1.0);
-    let s = var.sqrt();
-    let denom = s + 1e-6;
-    let y: Vec<f32> = p.iter().map(|x| (x - mean) / denom).collect();
-
     let t = freqs();
+    let trap = trapezoid_weights();
     let mut loss = 0.0f32;
-    let mut gy = vec![0.0f32; m]; // dL/dy
-    for &ti in t.iter() {
-        let w = (-0.5 * ti * ti).exp();
-        let target = w; // exp(-t^2/2)
+    let mut gp = vec![0.0f32; m];
+    for (i, &ti) in t.iter().enumerate() {
+        let phi = (-0.5 * ti * ti).exp();
+        let wi = trap[i] * phi;
         let mut cr = 0.0f32;
         let mut ci = 0.0f32;
-        for &yj in &y {
-            cr += (ti * yj).cos();
-            ci += (ti * yj).sin();
+        for &pj in p {
+            cr += (ti * pj).cos();
+            ci += (ti * pj).sin();
         }
         cr /= mf;
         ci /= mf;
-        loss += w * ((cr - target) * (cr - target) + ci * ci);
-        // dL/dy_j for this freq
-        let a = 2.0 * w * (cr - target);
-        let b = 2.0 * w * ci;
-        for (j, &yj) in y.iter().enumerate() {
-            // d cr/dy_j = -(ti/m) sin(ti yj); d ci/dy_j = (ti/m) cos(ti yj)
-            gy[j] += a * (-(ti / mf) * (ti * yj).sin()) + b * ((ti / mf) * (ti * yj).cos());
+        loss += wi * ((cr - phi) * (cr - phi) + ci * ci);
+        let a = 2.0 * wi * (cr - phi);
+        let b = 2.0 * wi * ci;
+        for (j, &pj) in p.iter().enumerate() {
+            gp[j] += a * (-(ti / mf) * (ti * pj).sin()) + b * ((ti / mf) * (ti * pj).cos());
         }
-    }
-    loss /= NF_T as f32;
-    for g in gy.iter_mut() {
-        *g /= NF_T as f32;
-    }
-
-    // Backward through standardization y = (p - mean)/denom, denom = std + eps.
-    // dL/dp_n = (1/denom)[gy_n - mean_g] - (y_n/((m-1) s)) * dot(gy, y) * (s/denom)
-    // Derived from d denom/dp_n = (p_n-mean)/((m-1) s) = y_n*denom/((m-1)s).
-    let mean_g: f32 = gy.iter().sum::<f32>() / mf;
-    let dot_gy_y: f32 = gy.iter().zip(&y).map(|(g, yy)| g * yy).sum();
-    let s_eff = s.max(1e-12);
-    let mut gp = vec![0.0f32; m];
-    for n in 0..m {
-        gp[n] = (gy[n] - mean_g) / denom - (y[n] / ((mf - 1.0) * s_eff)) * dot_gy_y * (s / denom);
     }
     (loss, gp)
 }
