@@ -55,15 +55,15 @@ fn main() {
         attitude_block_residual(wb_ref)
     );
     println!(
-        "  (≈0 confirms the harness, and that 𝕊 earns its keep only in the 4-D attitude corner.)"
+        "  (≈0 confirms the harness and indicates sedenion operators cover the attitude sub-block.)"
     );
 
     println!("\nInterpretation:");
     println!(
-        "  ρ_full small  → strapdown coupling lives in the sedenion operators (structural win)."
+        "  ρ_full small  → residual low: coupling projects into sedenion operator subspace."
     );
-    println!("  ρ_full large  → physics is NOT in the algebra; F_nonlinear carries it (overhead).");
-    println!("  Δρ            → marginal value of the off-quaternion generators e4..e15.");
+    println!("  ρ_full large  → residual high: coupling not represented by sedenion operators.");
+    println!("  Δρ            → difference attributable to off-quaternion generators e4..e15.");
     println!(
         "  ρ_att / ρ_vp  → where the misfit concentrates (attitude block vs velocity+position)."
     );

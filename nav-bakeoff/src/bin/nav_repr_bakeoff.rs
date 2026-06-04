@@ -162,7 +162,7 @@ fn main() {
             row.terminal_std, delta, t, sig
         );
     }
-    println!("* = |paired t| >= 2 vs dead reckoning. Positive d_vs_DR means worse than DR.");
+    println!("* = |paired t| >= 2 vs dead reckoning. Positive d_vs_DR indicates model metric is greater than the dead-reckoning reference.");
 
     let mut csv = String::from("model,params,split,norm_mse,bias_rmse_mps2,drift3d_rmse_m,driftxy_rmse_m,latent_rms,zda_score\n");
     for row in &rows {

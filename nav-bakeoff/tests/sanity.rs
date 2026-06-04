@@ -34,7 +34,7 @@ fn noise_free_baseline_does_not_drift() {
 
 /// At lambda = 0 the sedenion variant must be bit-for-bit equivalent to the
 /// baseline: the embedding is applied but the projection is a no-op. This
-/// confirms the SUKF can do no better than "become the baseline".
+/// confirms SUKF output equality with the baseline at λ=0.
 #[test]
 fn sukf_lambda_zero_equals_baseline() {
     let params = ImuParams::default();

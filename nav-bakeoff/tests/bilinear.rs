@@ -37,7 +37,7 @@ fn off_quaternion_generators_add_little() {
     let a = strapdown_coupling([0.35, 0.28, 0.37]);
     let rf = residual(&a, &generators(16)).rho;
     let rq = residual(&a, &generators(4)).rho;
-    assert!(rq - rf >= -1e-9, "full must not be worse than the subset");
+    assert!(rq - rf >= -1e-9, "expected rq >= rf; Δρ={}", rq - rf);
     assert!(
         rq - rf < 0.1,
         "off-quaternion gens unexpectedly valuable: Δρ={}",
@@ -52,8 +52,7 @@ fn reachable_dimensions() {
     assert_eq!(reachable_dim(&generators(4)), 7);
 }
 
-/// A zero divisor's left-multiplication operator must be singular — a genuine
-/// blind direction, not a safe sink.
+/// A zero divisor's left-multiplication operator must be singular — a blind direction and a conditioning hazard.
 #[test]
 fn zero_divisor_operator_is_singular() {
     let mut c = [0.0f32; 16];
