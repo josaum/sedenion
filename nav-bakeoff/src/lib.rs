@@ -5,6 +5,7 @@
 pub mod bilinear;
 pub mod filters;
 pub mod linalg;
+pub mod manifold;
 pub mod nav_repr;
 pub mod real_data;
 pub mod sim;
