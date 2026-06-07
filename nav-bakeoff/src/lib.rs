@@ -10,4 +10,5 @@ pub mod nav_repr;
 pub mod real_data;
 pub mod sim;
 pub mod preintegration;
+pub mod iekf;
 pub mod ukf;
