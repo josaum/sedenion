@@ -1466,7 +1466,7 @@ pub fn eval_bias_aided_filter_iekf<M: ReprModel>(
 
     for seed in 20_000..20_000 + test_seeds {
         let traj = sim::generate(seed, steps, repr_cfg.dt, &params);
-        let errors = crate::filters::run_iekf_with_bias_aid(
+        let errors = run_iekf_with_bias_aid(
             &traj,
             &params,
             &cfg,
@@ -1510,7 +1510,7 @@ pub fn eval_bias_aided_seqs_iekf<M: ReprModel>(
     let stride = (repr_cfg.stride_s / repr_cfg.dt).max(1.0) as usize;
     let mut per_seed = Vec::new();
     for (i, traj) in sequences.iter().enumerate() {
-        let errors = crate::filters::run_iekf_with_bias_aid(
+        let errors = run_iekf_with_bias_aid(
             traj,
             &params,
             &cfg,
