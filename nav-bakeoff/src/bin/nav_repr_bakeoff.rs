@@ -83,7 +83,7 @@ fn main() {
     println!("nav-repr-bakeoff — learned MEMS error representations");
 
     // --data <dir>: real-flight Arrow IPC bakeoff. Otherwise synthetic.
-    let (n_train, n_test, rows, nav_rows) = if let Some(dir) = flag_value(&args, "--data") {
+    let (n_train, n_test, rows, mut nav_rows) = if let Some(dir) = flag_value(&args, "--data") {
         let test_frac: f64 = flag_value(&args, "--test-frac")
             .and_then(|s| s.parse().ok())
             .unwrap_or(0.2);
@@ -135,6 +135,19 @@ fn main() {
         println!();
         run_bakeoff(&repr_cfg, &train_cfg, train_seeds, test_seeds)
     };
+    // Filter selection: --filter {ukf,iekf,both}
+    let filter_mode = flag_value(&args, "--filter").unwrap_or("both");
+    if filter_mode != "both" {
+        println!("FILTER={filter_mode}");
+    }
+    if filter_mode == "ukf" {
+        // Remove IEKF rows produced by the harness
+        nav_rows.retain(|r| !r.name.ends_with(" (IEKF)"));
+    } else if filter_mode == "iekf" {
+        // Keep only IEKF rows and the dead-reckoning reference
+        nav_rows.retain(|r| r.name.ends_with(" (IEKF)") || r.name.starts_with("Dead reckoning"));
+    }
+
     println!("examples: train={n_train} test={n_test}");
     println!();
     println!("== proxy target metrics ==");
