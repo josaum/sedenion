@@ -21,6 +21,7 @@
 use crate::linalg::Mat;
 use crate::sim::{ImuParams, Sample, N};
 use crate::ukf::Ukf;
+use crate::iekf::Iekf;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sedenion::Sedenion;
@@ -251,3 +252,134 @@ where
     }
     errors
 }
+
+/// IEKF runner: mirrors `run_with_bias_aid` but uses the Iekf struct and its
+/// (predict, update_position, update_bias) methods so it's comparable in the
+/// bakeoff harness.
+pub fn run_iekf_with_bias_aid<F>(
+    samples: &[Sample],
+    p: &ImuParams,
+    cfg: &Config,
+    use_sedenion: bool,
+    seed: u64,
+    bias_sigma: f64,
+    mut bias_aid: F,
+) -> Vec<f64>
+where
+    F: FnMut(usize, &[Sample]) -> Option<[f64; 3]>,
+{
+    let q = process_noise(p, cfg.dt);
+    let x0 = vec![0.0; N]; // start at origin, zero velocity, zero bias prior
+    let mut ie = Iekf::new(x0, initial_cov(p));
+    // Separate RNG stream for fix noise, decoupled from the trajectory RNG.
+    let mut fix_rng = StdRng::seed_from_u64(seed ^ 0xF1_F1_F1_F1);
+
+    let r_fix = {
+        let mut r = Mat::zeros(3, 3);
+        for i in 0..3 {
+            r.set(i, i, cfg.fix_sigma.powi(2));
+        }
+        r
+    };
+    let r_bias = {
+        let mut r = Mat::zeros(3, 3);
+        for i in 0..3 {
+            r.set(i, i, bias_sigma.max(1e-6).powi(2));
+        }
+        r
+    };
+
+    let mut errors = Vec::with_capacity(samples.len());
+    let mut next_fix = cfg.fix_interval; // first fix time
+
+    let mut prev_fix_idx: Option<usize> = None;
+    let mut prev_fix_pos: [f64; 3] = [0.0; 3];
+
+    for (idx, s) in samples.iter().enumerate() {
+        let accel = s.accel_meas;
+        let dt = cfg.dt;
+        ie.predict(accel, dt, &q);
+
+        if use_sedenion {
+            let (m, _dist) = sedenion_zda(&ie.x, cfg.lambda);
+            ie.x = m;
+        }
+
+        // External position fix (e.g. visual feature match / map correlation).
+        if let Some(iv) = cfg.fix_interval {
+            if let Some(nf) = next_fix {
+                if s.t >= nf {
+                    // Sampled measurement: truth corrupted by the σ=fix_sigma noise
+                    // the filter's R matrix actually models.
+                    let z = [
+                        s.truth[0] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                        s.truth[1] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                        s.truth[2] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                    ];
+
+                    // If we have a previous fix, derive a bias estimate using
+                    // preintegrated IMU between fixes and apply it as a
+                    // pseudo-measurement on the accelerometer bias state.
+                    if let Some(pi) = prev_fix_idx {
+                        if idx > pi {
+                            let pre = integrate_imu_window(&samples[pi..=idx]);
+                            // observed delta between noisy fixes
+                            let obs_dp = [
+                                z[0] - prev_fix_pos[0],
+                                z[1] - prev_fix_pos[1],
+                                z[2] - prev_fix_pos[2],
+                            ];
+                            // residual = obs - pre.delta_p
+                            let mut res = [0.0f64; 3];
+                            for i in 0..3 {
+                                res[i] = obs_dp[i] - pre.delta_p[i];
+                            }
+                            // build jacobian J (3×3) from pre.jac_bias rows 0..2
+                            let mut J = Mat::zeros(3, 3);
+                            for r in 0..3 {
+                                for c in 0..3 {
+                                    J.set(r, c, pre.jac_bias.get(r, c));
+                                }
+                            }
+                            // Solve J * b = res in LS sense: (JᵀJ) b = Jᵀ res
+                            let jt = J.transpose();
+                            let a = jt.matmul(&J);
+                            let mut res_mat = Mat::zeros(3, 1);
+                            for r in 0..3 {
+                                res_mat.set(r, 0, res[r]);
+                            }
+                            let rhs = jt.matmul(&res_mat);
+                            let b_est_mat = crate::linalg::solve(&a, &rhs);
+                            let b_est = [
+                                b_est_mat.get(0, 0),
+                                b_est_mat.get(1, 0),
+                                b_est_mat.get(2, 0),
+                            ];
+                            // Apply as pseudo-measurement on bias
+                            ie.update_bias(b_est, &r_bias);
+                        }
+                    }
+
+                    // External position measurement update
+                    ie.update_position(z, &r_fix);
+
+                    // store this fix as previous for next interval
+                    prev_fix_idx = Some(idx);
+                    prev_fix_pos = z;
+
+                    next_fix = Some(nf + iv);
+                }
+            }
+        }
+
+        if let Some(b) = bias_aid(idx, samples) {
+            ie.update_bias(b, &r_bias);
+        }
+
+        let dx = ie.x[0] - s.truth[0];
+        let dy = ie.x[1] - s.truth[1];
+        errors.push((dx * dx + dy * dy).sqrt());
+    }
+    errors
+}
+

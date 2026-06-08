@@ -7,7 +7,7 @@
 
 use crate::sim::{generate, ImuParams, Sample};
 use crate::{
-    filters::{run, run_with_bias_aid, Config as FilterConfig},
+    filters::{run, run_with_bias_aid, run_iekf_with_bias_aid, Config as FilterConfig},
     sim,
 };
 use rand::rngs::StdRng;
@@ -1442,6 +1442,100 @@ pub fn eval_bias_aided_filter<M: ReprModel>(
     terminal_per_seed(&per_seed)
 }
 
+// IEKF variants: mirror the bias-aided evaluation but using the IEKF filter.
+pub fn eval_bias_aided_filter_iekf<M: ReprModel>(
+    model: &M,
+    scaler: &Scaler,
+    repr_cfg: &ReprConfig,
+    test_seeds: u64,
+    bias_sigma: f64,
+) -> Vec<f64> {
+    let mut params = ImuParams::default();
+    if repr_cfg.duffing {
+        params.duffing_beta = 5.0;
+    }
+    let steps = (repr_cfg.duration_s / repr_cfg.dt) as usize;
+    let cfg = FilterConfig {
+        dt: repr_cfg.dt,
+        fix_interval: None,
+        fix_sigma: 5.0,
+        lambda: 0.0,
+    };
+    let stride = (repr_cfg.stride_s / repr_cfg.dt).max(1.0) as usize;
+    let mut per_seed = Vec::new();
+
+    for seed in 20_000..20_000 + test_seeds {
+        let traj = sim::generate(seed, steps, repr_cfg.dt, &params);
+        let errors = crate::filters::run_iekf_with_bias_aid(
+            &traj,
+            &params,
+            &cfg,
+            false,
+            seed,
+            bias_sigma,
+            |idx, samples| {
+                if idx % stride != 0 {
+                    return None;
+                }
+                let mut x = window_features(samples, idx, repr_cfg)?;
+                scale_window(&mut x, scaler);
+                let (_, y) = model.forward(&x);
+                Some([
+                    (y[0] * scaler.y_std[0] + scaler.y_mean[0]) as f64,
+                    (y[1] * scaler.y_std[1] + scaler.y_mean[1]) as f64,
+                    (y[2] * scaler.y_std[2] + scaler.y_mean[2]) as f64,
+                ])
+            },
+        );
+        per_seed.push(errors);
+    }
+
+    terminal_per_seed(&per_seed)
+}
+
+pub fn eval_bias_aided_seqs_iekf<M: ReprModel>(
+    model: &M,
+    scaler: &Scaler,
+    sequences: &[Vec<Sample>],
+    repr_cfg: &ReprConfig,
+    bias_sigma: f64,
+) -> Vec<f64> {
+    let params = ImuParams::default();
+    let cfg = FilterConfig {
+        dt: repr_cfg.dt,
+        fix_interval: None,
+        fix_sigma: 5.0,
+        lambda: 0.0,
+    };
+    let stride = (repr_cfg.stride_s / repr_cfg.dt).max(1.0) as usize;
+    let mut per_seed = Vec::new();
+    for (i, traj) in sequences.iter().enumerate() {
+        let errors = crate::filters::run_iekf_with_bias_aid(
+            traj,
+            &params,
+            &cfg,
+            false,
+            i as u64,
+            bias_sigma,
+            |idx, samples| {
+                if idx % stride != 0 {
+                    return None;
+                }
+                let mut x = window_features(samples, idx, repr_cfg)?;
+                scale_window(&mut x, scaler);
+                let (_, y) = model.forward(&x);
+                Some([
+                    (y[0] * scaler.y_std[0] + scaler.y_mean[0]) as f64,
+                    (y[1] * scaler.y_std[1] + scaler.y_mean[1]) as f64,
+                    (y[2] * scaler.y_std[2] + scaler.y_mean[2]) as f64,
+                ])
+            },
+        );
+        per_seed.push(errors);
+    }
+    terminal_per_seed(&per_seed)
+}
+
 /// Dead-reckoning UKF over caller-supplied real trajectories (no synthetic
 /// generation). Uses default MEMS noise params for the process model — these
 /// should be calibrated to the real sensor for quantitative work.
@@ -1538,6 +1632,23 @@ impl FilterSource<'_> {
             }
         }
     }
+
+    fn bias_aided_iekf<M: ReprModel>(
+        &self,
+        model: &M,
+        scaler: &Scaler,
+        repr_cfg: &ReprConfig,
+        sigma: f64,
+    ) -> Vec<f64> {
+        match self {
+            FilterSource::Synthetic { test_seeds } => {
+                eval_bias_aided_filter_iekf(model, scaler, repr_cfg, *test_seeds, sigma)
+            }
+            FilterSource::Real { sequences } => {
+                eval_bias_aided_seqs_iekf(model, scaler, sequences, repr_cfg, sigma)
+            }
+        }
+    }
 }
 
 /// Record both the proxy-metric row and the filter-in-loop row for one model.
@@ -1565,6 +1676,11 @@ fn record_model<M: ReprModel>(
     });
     let per_seed = src.bias_aided(model, scaler, repr_cfg, bias_sigma);
     nav_rows.push(make_filter_row(name, model.params(), bias_sigma, per_seed));
+
+    // Also run the IEKF variant for direct comparison and record a separate row.
+    let per_seed_iekf = src.bias_aided_iekf(model, scaler, repr_cfg, bias_sigma);
+    let name_iekf: &'static str = Box::leak(format!("{} (IEKF)", name).into_boxed_str());
+    nav_rows.push(make_filter_row(name_iekf, model.params(), bias_sigma, per_seed_iekf));
 }
 
 /// Synthetic-data bakeoff (unchanged behavior): builds train/test examples from
