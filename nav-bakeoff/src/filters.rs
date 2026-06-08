@@ -164,6 +164,7 @@ where
 
     let mut prev_fix_idx: Option<usize> = None;
     let mut prev_fix_pos: [f64; 3] = [0.0; 3];
+    let mut prev_fix_vel: [f64; 3] = [0.0; 3];
 
     for (idx, s) in samples.iter().enumerate() {
         let accel = s.accel_meas;
@@ -192,7 +193,7 @@ where
                     // pseudo-measurement on the accelerometer bias state.
                     if let Some(pi) = prev_fix_idx {
                         if idx > pi {
-                            let pre = integrate_imu_window(&samples[pi..=idx]);
+                            let pre = integrate_imu_window(&samples[pi..=idx], prev_fix_vel);
                             // observed delta between noisy fixes
                             let obs_dp = [
                                 z[0] - prev_fix_pos[0],
@@ -236,6 +237,7 @@ where
                     // store this fix as previous for next interval
                     prev_fix_idx = Some(idx);
                     prev_fix_pos = z;
+                    prev_fix_vel = [ukf.x[3], ukf.x[4], ukf.x[5]];
 
                     next_fix = Some(nf + iv);
                 }
@@ -294,6 +296,7 @@ where
 
     let mut prev_fix_idx: Option<usize> = None;
     let mut prev_fix_pos: [f64; 3] = [0.0; 3];
+    let mut prev_fix_vel: [f64; 3] = [0.0; 3];
 
     for (idx, s) in samples.iter().enumerate() {
         let accel = s.accel_meas;
@@ -322,7 +325,7 @@ where
                     // pseudo-measurement on the accelerometer bias state.
                     if let Some(pi) = prev_fix_idx {
                         if idx > pi {
-                            let pre = integrate_imu_window(&samples[pi..=idx]);
+                            let pre = integrate_imu_window(&samples[pi..=idx], prev_fix_vel);
                             // observed delta between noisy fixes
                             let obs_dp = [
                                 z[0] - prev_fix_pos[0],
@@ -366,6 +369,7 @@ where
                     // store this fix as previous for next interval
                     prev_fix_idx = Some(idx);
                     prev_fix_pos = z;
+                    prev_fix_vel = [ie.x[3], ie.x[4], ie.x[5]];
 
                     next_fix = Some(nf + iv);
                 }

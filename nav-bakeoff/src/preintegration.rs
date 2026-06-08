@@ -21,7 +21,7 @@ pub struct Preintegrated {
 /// Trapezoidal preintegration that treats accelerometer samples as resolved in
 /// the navigation frame. Returns first-order bias Jacobians and a placeholder
 /// covariance (zeros) for later refinement.
-pub fn integrate_imu_window(samples: &[Sample]) -> Preintegrated {
+pub fn integrate_imu_window(samples: &[Sample], v0: [f64; 3]) -> Preintegrated {
     if samples.len() < 2 {
         return Preintegrated {
             delta_p: [0.0; 3],
@@ -33,7 +33,7 @@ pub fn integrate_imu_window(samples: &[Sample]) -> Preintegrated {
     }
 
     let mut p = [0.0f64; 3];
-    let mut v = [0.0f64; 3];
+    let mut v = v0;
     let mut total_t = 0.0f64;
 
     for k in 0..(samples.len() - 1) {
@@ -83,7 +83,7 @@ mod tests {
             Sample { t: 0.0, accel_meas: [0.0, 0.0, 0.0], gyro_meas: [0.0, 0.0, 0.0], truth: [0.0; 9] },
             Sample { t: 1.0, accel_meas: [1.0, 0.0, 0.0], gyro_meas: [0.0, 0.0, 0.0], truth: [0.0; 9] },
         ];
-        let out = integrate_imu_window(&samples);
+        let out = integrate_imu_window(&samples, [0.0; 3]);
         assert!(out.delta_v[0] > 0.49 && out.delta_v[0] < 0.51, "delta_v[0]={}", out.delta_v[0]);
         assert!(out.delta_p[0] > 0.24 && out.delta_p[0] < 0.26, "delta_p[0]={}", out.delta_p[0]);
     }
