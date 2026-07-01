@@ -21,10 +21,10 @@
 use crate::linalg::Mat;
 use crate::sim::{ImuParams, Sample, N};
 use crate::ukf::Ukf;
+use crate::iekf::Iekf;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sedenion::Sedenion;
-
 fn gaussian(rng: &mut StdRng) -> f64 {
     let u1: f64 = rng.gen::<f64>().max(1e-12);
     let u2: f64 = rng.gen::<f64>();
@@ -197,3 +197,81 @@ where
     }
     errors
 }
+
+/// IEKF runner: mirrors `run_with_bias_aid` but uses the Iekf struct and its
+/// (predict, update_position, update_bias) methods so it's comparable in the
+/// bakeoff harness.
+pub fn run_iekf_with_bias_aid<F>(
+    samples: &[Sample],
+    p: &ImuParams,
+    cfg: &Config,
+    use_sedenion: bool,
+    seed: u64,
+    bias_sigma: f64,
+    mut bias_aid: F,
+) -> Vec<f64>
+where
+    F: FnMut(usize, &[Sample]) -> Option<[f64; 3]>,
+{
+    let q = process_noise(p, cfg.dt);
+    let x0 = vec![0.0; N]; // start at origin, zero velocity, zero bias prior
+    let mut ie = Iekf::new(x0, initial_cov(p));
+    // Separate RNG stream for fix noise, decoupled from the trajectory RNG.
+    let mut fix_rng = StdRng::seed_from_u64(seed ^ 0xF1_F1_F1_F1);
+
+    let r_fix = {
+        let mut r = Mat::zeros(3, 3);
+        for i in 0..3 {
+            r.set(i, i, cfg.fix_sigma.powi(2));
+        }
+        r
+    };
+    let r_bias = {
+        let mut r = Mat::zeros(3, 3);
+        for i in 0..3 {
+            r.set(i, i, bias_sigma.max(1e-6).powi(2));
+        }
+        r
+    };
+
+    let mut errors = Vec::with_capacity(samples.len());
+    let mut next_fix = cfg.fix_interval; // first fix time
+
+    for (idx, s) in samples.iter().enumerate() {
+        let accel = s.accel_meas;
+        let dt = cfg.dt;
+        ie.predict(accel, dt, &q);
+
+        if use_sedenion {
+            let (m, _dist) = sedenion_zda(&ie.x, cfg.lambda);
+            ie.x = m;
+        }
+
+        // External position fix (e.g. visual feature match / map correlation).
+        if let Some(iv) = cfg.fix_interval {
+            if let Some(nf) = next_fix {
+                if s.t >= nf {
+                    // Sampled measurement: truth corrupted by the σ=fix_sigma noise
+                    // the filter's R matrix actually models.
+                    let z = [
+                        s.truth[0] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                        s.truth[1] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                        s.truth[2] + cfg.fix_sigma * gaussian(&mut fix_rng),
+                    ];
+                    ie.update_position(z, &r_fix);
+                    next_fix = Some(nf + iv);
+                }
+            }
+        }
+
+        if let Some(b) = bias_aid(idx, samples) {
+            ie.update_bias(b, &r_bias);
+        }
+
+        let dx = ie.x[0] - s.truth[0];
+        let dy = ie.x[1] - s.truth[1];
+        errors.push((dx * dx + dy * dy).sqrt());
+    }
+    errors
+}
+

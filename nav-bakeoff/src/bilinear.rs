@@ -20,10 +20,9 @@
 //! ```
 //!
 //! how far is the true strapdown coupling from everything the sedenion product
-//! can express? `ρ_full ≈ 0` ⇒ the sedenion operators are a compact (≤31-param)
-//! natural basis for strapdown coupling — a real structural win. `ρ_full` large
-//! ⇒ the physics does not live in the algebra and `F_nonlinear` must carry it,
-//! i.e. the algebra is overhead.
+//! can express? `ρ_full ≈ 0` indicates coupling projects into the sedenion operator
+//! subspace (low residual). `ρ_full` large indicates coupling not represented by
+//! sedenion operators; F_nonlinear accounts for the remaining terms.
 //!
 //! The quaternion-generator ablation (`ρ_quat`, multipliers restricted to
 //! `e_0..e_3`) and `Δρ = ρ_quat − ρ_full` isolate how much the *off-quaternion*
@@ -232,11 +231,10 @@ pub fn residual(a: &Mat, gens: &[Mat]) -> Residual {
 }
 
 /// Control / sanity check: the 4×4 attitude-kinematics block projected onto the
-/// 4×4 quaternion multiplication operators (the genuine quaternion subalgebra
-/// acting on itself). Should be ≈0 — quaternions ARE the right tool for the
-/// attitude sub-problem, in sharp contrast to the full 16-D state. This both
-/// validates the harness and isolates exactly where the sedenion product earns
-/// its keep (the 4-D attitude corner) and where it does not (everything else).
+/// 4×4 quaternion multiplication operators (the quaternion subalgebra acting on
+/// itself). Expected residual ≈0 for the attitude block; this validates the
+/// harness and indicates the sedenion product applies to the 4-D attitude corner
+/// but may not apply to other blocks.
 pub fn attitude_block_residual(wb: [f64; 3]) -> f64 {
     let full = strapdown_coupling(wb);
     let mut a4 = Mat::zeros(4, 4);
