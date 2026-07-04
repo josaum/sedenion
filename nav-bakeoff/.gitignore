@@ -12,3 +12,7 @@ nav_repr_filter_results.csv
 __pycache__/
 *.pyc
 
+# Real-data path: local venv + downloaded/generated datasets (regenerate on demand)
+.rosenv/
+/data/
+

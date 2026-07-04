@@ -232,3 +232,20 @@ This repo actually hosts the `sedenion` research project (see `README.md`), whic
 - The heavy `nav-bakeoff` build cost is the `arrow` crate (~1 min cold). `sedenion`/`repr-bakeoff` compile in seconds.
 - `nav-bakeoff/tools/requirements.txt` (rosbags/pyarrow) is **optional** — only for the real-data ROS-bag → Arrow path; use a `uv venv --python 3.12` per the file's header. Not needed to run any of the above.
 - Running the bakeoff binaries writes CSVs (`bakeoff_results.csv`, `nav_repr_results.csv`, etc.) into the crate dir; these are build output, not deliverables.
+
+### Real-data representation path (`nav-repr-bakeoff --data`)
+The `nav-repr-bakeoff` bakeoff can run on real UAV flights instead of synthetic seeds. This path is **verified working** end-to-end. It needs a Python venv (kept out of the update script since it's optional and heavy). Set it up on demand from the `nav-bakeoff/` dir:
+- `python3 -m venv .rosenv` then `.rosenv/bin/pip install -r tools/requirements.txt` (add `datasets huggingface_hub` for the Hugging Face fetch path). If venv creation fails with "No module named ensurepip", install `python3.12-venv` first.
+- Both `.rosenv/` and `/data/` are gitignored; regenerate them, don't commit them.
+
+Pipelines (all write the exact `real_data.rs` Arrow schema `t,ax..az,px..pz,vx..vz,gx..gz`):
+- Real Edged-USLAM bags: `.rosenv/bin/python tools/hf_edged_uslam_to_arrow.py --max-files N --max-bytes 0 --report` → Arrow flights under `data/arrow/edged-uslam/`. Needs network to `huggingface.co` (works unauthenticated; motion bags are 0.4–2 GiB each).
+- Any ROS1/ROS2 bag: `tools/rosbag_to_arrow.py IN OUT --report` (autodetects IMU/pose topics; `--self-test` round-trips without a bag).
+- Offline procedural flights (no network): `tools/generate_procedural_uav_arrow.py data/arrow/procedural --count N`.
+- Mixed procedural-train + real held-out test: `tools/make_mixed_arrow_dataset.py --procedural-dir ... --real-dir data/arrow/edged-uslam --out-dir data/arrow/mixed` (prints the `--test-frac` to pass).
+- Run: `cargo run --release --bin nav-repr-bakeoff -- --data data/arrow/<dir> --test-frac F`.
+
+Non-obvious gotchas:
+- `--rate` in the extractors must match the Rust `--dt` (default 50 Hz = 0.02 s).
+- `load_dataset` sorts files lexicographically and holds out the **last** `test_frac` by file count; the mixed-dataset tool encodes the split via `a_`/`b_`/`z_` filename prefixes. Filter-in-loop `n seqs` equals the number of held-out **files**, so use ≥2 test files (higher `--test-frac`, or more bags) for meaningful paired t-stats.
+- Accelerometer frame/gravity conventions are dataset-specific; `--report` prints `a_nav` stats (stationary |a| should be ~0, not ~9.8). Default `--gravity-mode world-calib` estimates the IMU↔pose extrinsic from gyro.
