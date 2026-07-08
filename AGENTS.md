@@ -210,3 +210,25 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+
+## Cursor Cloud specific instructions
+
+This repo actually hosts the `sedenion` research project (see `README.md`), which has four independent build targets. It is **not** a Cargo workspace — run each crate from its own directory. Standard build/test/run commands live in `README.md` and each crate's `README.md`; only non-obvious notes are captured here.
+
+### Components
+- `sedenion/`, `repr-bakeoff/`, `nav-bakeoff/` — Rust crates, pinned to Rust 1.96.0 via `rust-toolchain.toml` (rustup auto-installs it on first `cargo` call).
+- `uav-viewer/` — Vite + TypeScript + Three.js web app (the runnable "application"). Uses npm (`package-lock.json`); `npm run dev` serves on `http://127.0.0.1:5173/`.
+- `repr-bakeoff/tools/ref_pure.py`, `nav-bakeoff/tools/*.py` — Python 3 helpers.
+
+### Lint / test / build / run
+- Rust lint: `cargo clippy --release --all-targets` per crate. Note: clippy currently emits **warnings only** (not denied), so a clean-with-warnings result is expected.
+- Rust tests: `cargo test --release` per crate. All pass offline.
+- Web viewer: `npm run build` = `tsc && vite build` (typecheck + prod build); `npm run dev` for the dev server.
+- SIGReg reference check is dependency-free stdlib Python: `python3 repr-bakeoff/tools/ref_pure.py` → expected `mean_over_slices_noN = 2.07709580`.
+
+### Non-obvious gotchas
+- The viewer auto-loads `uav-viewer/public/flights/nav-default.arrow`, which is **gitignored and not committed**. Regenerate it (from the `nav-bakeoff` dir) before running the viewer, or the page shows "Ainda não há arquivo Arrow padrão":
+  `cargo run --release --bin export-uav-arrow` (writes to `../uav-viewer/public/flights/nav-default.arrow` by default). You can also drag-drop any Arrow IPC flight onto the page.
+- The heavy `nav-bakeoff` build cost is the `arrow` crate (~1 min cold). `sedenion`/`repr-bakeoff` compile in seconds.
+- `nav-bakeoff/tools/requirements.txt` (rosbags/pyarrow) is **optional** — only for the real-data ROS-bag → Arrow path; use a `uv venv --python 3.12` per the file's header. Not needed to run any of the above.
+- Running the bakeoff binaries writes CSVs (`bakeoff_results.csv`, `nav_repr_results.csv`, etc.) into the crate dir; these are build output, not deliverables.
