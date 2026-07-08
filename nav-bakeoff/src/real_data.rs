@@ -715,4 +715,68 @@ mod tests {
         assert!(first.truth[0].abs() < 1e-9);
         assert!(first.truth[3].abs() < 1e-9);
     }
+
+    /// The `uav-viewer` TypeScript client (`uav-viewer/src/main.ts`,
+    /// `FlightColumns`) reads these Arrow columns by name and type. Pin the
+    /// exported schema so a change to `out_schema` cannot silently break that
+    /// downstream consumer.
+    #[test]
+    fn viewer_export_schema_is_a_stable_contract() {
+        use arrow::ipc::reader::FileReader;
+
+        let dir = std::env::temp_dir().join("nav_uav_export_contract_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("viewer.arrow");
+
+        // Mirror the `export-uav-arrow` binary defaults (50 Hz, seed 7). A short
+        // flight is enough to fix the schema and a nonzero row count.
+        let dt = 0.02;
+        let steps = 200;
+        let samples = generate(7, steps, dt, &ImuParams::default());
+        write_samples_arrow(&path, &samples).unwrap();
+
+        // Read the schema the way an external consumer would: the stock Arrow
+        // file reader, not this crate's custom zero-copy decoder.
+        let file = File::open(&path).unwrap();
+        let reader = FileReader::try_new(file, None).unwrap();
+        let schema = reader.schema();
+
+        // Exact column contract: order, name, type, and non-nullability.
+        let expected: &[(&str, DataType)] = &[
+            ("t", DataType::Float64),
+            ("ax", DataType::Float32),
+            ("ay", DataType::Float32),
+            ("az", DataType::Float32),
+            ("px", DataType::Float32),
+            ("py", DataType::Float32),
+            ("pz", DataType::Float32),
+            ("vx", DataType::Float32),
+            ("vy", DataType::Float32),
+            ("vz", DataType::Float32),
+            ("gx", DataType::Float32),
+            ("gy", DataType::Float32),
+            ("gz", DataType::Float32),
+        ];
+        assert_eq!(
+            schema.fields().len(),
+            expected.len(),
+            "exported column count changed; update uav-viewer FlightColumns too"
+        );
+        for (i, (name, ty)) in expected.iter().enumerate() {
+            let field = schema.field(i);
+            assert_eq!(field.name(), name, "column {i} name");
+            assert_eq!(field.data_type(), ty, "column `{name}` type");
+            assert!(!field.is_nullable(), "column `{name}` must be non-nullable");
+        }
+
+        // Row count round-trips and the viewer-critical channels are finite.
+        let loaded = ArrowFlight::open(&path).unwrap().to_samples().unwrap();
+        assert_eq!(loaded.len(), samples.len(), "exported row count");
+        assert!(
+            loaded.iter().all(|s| s.t.is_finite()
+                && s.accel_meas.iter().all(|v| v.is_finite())
+                && s.truth[0..6].iter().all(|v| v.is_finite())),
+            "exported flight must contain only finite time/accel/pos/vel values"
+        );
+    }
 }
