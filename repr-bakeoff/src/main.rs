@@ -168,6 +168,7 @@ fn run_deep(
     n_classes: usize,
     seeds: u64,
     jam_train: f32,
+    jam_mult: bool,
     make_data: impl Fn(u64) -> Dataset,
 ) {
     use repr_bakeoff::deep::{
@@ -232,6 +233,7 @@ fn run_deep(
     let mut per_arm: Vec<Vec<Result>> = (0..arms.len()).map(|_| Vec::new()).collect();
     let mut per_arm_jam: Vec<Vec<Vec<f64>>> = (0..arms.len()).map(|_| Vec::new()).collect();
     let mut per_arm_tonal: Vec<Vec<Vec<f64>>> = (0..arms.len()).map(|_| Vec::new()).collect();
+    let mut per_arm_mult: Vec<Vec<Vec<f64>>> = (0..arms.len()).map(|_| Vec::new()).collect();
     for seed in 0..seeds {
         let data = make_data(seed);
         for (ai, a) in arms.iter().enumerate() {
@@ -243,20 +245,26 @@ fn run_deep(
             let cfg = DeepConfig {
                 zda: a.zda,
                 jam_train,
+                jam_mult,
                 ..DeepConfig::default()
             };
             let de = train_deep_and_eval(enc, &data, &cfg);
             per_arm[ai].push(de.eval);
             per_arm_jam[ai].push(de.jam_acc);
             per_arm_tonal[ai].push(de.jam_tonal_acc);
+            per_arm_mult[ai].push(de.jam_mult_acc);
         }
     }
     let names: Vec<&str> = arms.iter().map(|a| a.name).collect();
     print_metric_tables(&names, &per_arm);
-    println!("\n[broadband jamming — full-rank noise, every input axis corrupted]");
+    println!("\n[broadband jamming — full-rank additive noise, every input axis corrupted]");
     print_jam_table(&names, &per_arm_jam, &JAM_LEVELS);
-    println!("\n[tonal jamming — rank-1 interferer, one random direction, energy-matched]");
+    println!(
+        "\n[tonal jamming — rank-1 additive interferer, one random direction, energy-matched]"
+    );
     print_jam_table(&names, &per_arm_tonal, &JAM_LEVELS);
+    println!("\n[multiplicative jamming — structured sedenion-domain distortion (the algebra's threat model)]");
+    print_jam_table(&names, &per_arm_mult, &JAM_LEVELS);
 }
 
 /// Print the anti-jamming curve: probe accuracy as the test inputs are jammed with
@@ -297,10 +305,16 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let deep_mode = args.iter().any(|a| a == "deep");
     let mnist_mode = args.iter().any(|a| a == "mnist");
-    // `robust` trains all arms under input jamming (noise augmentation), then
-    // re-runs the anti-jamming curve — the fair test of jam-robustness.
+    // `robust` trains all arms under input jamming, then re-runs the anti-jamming
+    // curves — the fair test of jam-robustness. `mult` makes that jamming
+    // *multiplicative* (structured, sedenion-domain) rather than additive noise.
+    let jam_mult = args.iter().any(|a| a == "mult");
     let jam_train = if args.iter().any(|a| a == "robust") {
-        0.5
+        if jam_mult {
+            0.7
+        } else {
+            0.5
+        }
     } else {
         0.0
     };
@@ -313,6 +327,7 @@ fn main() {
                 10,
                 3,
                 jam_train,
+                jam_mult,
                 |seed| mnist::build(&raw, seed, 1200, 1200),
             );
         }
@@ -322,6 +337,7 @@ fn main() {
                 10,
                 4,
                 jam_train,
+                jam_mult,
                 |seed| generate(seed, 10, 400, 400),
             );
         }

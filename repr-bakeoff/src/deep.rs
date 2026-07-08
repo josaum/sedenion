@@ -24,7 +24,7 @@
 //
 // Rust guideline compliant 2026-02-21
 
-use crate::data::{Dataset, EMB, INPUT};
+use crate::data::{Dataset, EMB, INPUT, NF};
 use crate::metrics::{collapse_metrics, linear_probe, support_class_metrics};
 use crate::sigreg::{gaussianity, sample_dirs, sigreg};
 use crate::train::Result as EvalResult;
@@ -530,9 +530,12 @@ pub struct DeepConfig {
     pub inv_w: f32,
     pub sig_w: f32,
     pub zda: bool,
-    /// Input-space jamming-noise std applied to the training views (0 = off).
-    /// Non-zero trains the encoder to be jam-robust (standard noise augmentation).
+    /// Input-space jamming strength applied to the training views (0 = off).
+    /// Non-zero trains the encoder to be jam-robust (jamming augmentation).
     pub jam_train: f32,
+    /// If true, training-time jamming is *multiplicative* (structured, sedenion
+    /// domain) instead of additive broadband noise.
+    pub jam_mult: bool,
 }
 
 impl Default for DeepConfig {
@@ -545,6 +548,7 @@ impl Default for DeepConfig {
             sig_w: 1.0,
             zda: false,
             jam_train: 0.0,
+            jam_mult: false,
         }
     }
 }
@@ -607,13 +611,43 @@ fn jam_view_tonal(v: &[f32; INPUT], sigma: f32, rng: &mut StdRng) -> [f32; INPUT
     out
 }
 
-/// A trained deep arm's evaluation: the shared metrics plus two anti-jamming
-/// accuracy curves (one entry per `JAM_LEVELS`) — broadband (full-rank) and tonal
-/// (rank-1), energy-matched at each level.
+/// Jam one view *multiplicatively* in the sedenion domain: view the input as
+/// `NF` sedenion blocks and left-multiply each by a per-sample jammer sedenion
+/// `j`, interpolated from identity (`alpha=0`, no jamming) to a random unit
+/// sedenion (`alpha=1`, full structured distortion). Unlike additive noise this
+/// is *structured* interference (rotation/channel-like) — the threat model where
+/// a multiplicative algebra has an inductive-bias handle a plain dense map lacks.
+/// The jammer is never revealed to the encoder; any advantage must be learned.
+fn jam_view_mult(v: &[f32; INPUT], alpha: f32, rng: &mut StdRng) -> [f32; INPUT] {
+    if alpha <= 0.0 {
+        return *v;
+    }
+    let mut jc = [0.0f32; H];
+    jc[0] = 1.0 - alpha;
+    for c in jc.iter_mut() {
+        *c += alpha * jam_gauss(rng);
+    }
+    let j = Sedenion::new(jc);
+    let n = j.norm();
+    let j = if n > 1e-9 { j.scale(1.0 / n) } else { j };
+    let mut out = [0.0f32; INPUT];
+    for i in 0..NF {
+        let mut xb = [0.0f32; H];
+        xb.copy_from_slice(&v[i * H..(i + 1) * H]);
+        let prod = Sedenion::new(xb) * j;
+        out[i * H..(i + 1) * H].copy_from_slice(prod.components());
+    }
+    out
+}
+
+/// A trained deep arm's evaluation: the shared metrics plus three anti-jamming
+/// accuracy curves (one entry per `JAM_LEVELS`) — broadband (full-rank additive),
+/// tonal (rank-1 additive), and multiplicative (structured, sedenion-domain).
 pub struct DeepEval {
     pub eval: EvalResult,
     pub jam_acc: Vec<f64>,
     pub jam_tonal_acc: Vec<f64>,
+    pub jam_mult_acc: Vec<f64>,
 }
 
 /// Minibatch Adam training of a deep arm, then evaluate with the shared metrics
@@ -637,15 +671,21 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
             let mut z: Vec<[f32; EMB]> = Vec::with_capacity(chunk.len() * 2);
             let mut cache: Vec<Vec<Vec<f32>>> = Vec::with_capacity(chunk.len() * 2);
             for &si in chunk {
-                // Optionally jam the training views (robustness augmentation).
-                let (va, vb) = if cfg.jam_train > 0.0 {
-                    (
-                        jam_view(&data.train[si].view_a, cfg.jam_train, &mut rng),
-                        jam_view(&data.train[si].view_b, cfg.jam_train, &mut rng),
-                    )
-                } else {
-                    (data.train[si].view_a, data.train[si].view_b)
+                // Optionally jam the training views (robustness augmentation),
+                // additive-broadband or multiplicative-structured.
+                let jam = |v: &[f32; INPUT], r: &mut StdRng| {
+                    if cfg.jam_train <= 0.0 {
+                        *v
+                    } else if cfg.jam_mult {
+                        jam_view_mult(v, cfg.jam_train, r)
+                    } else {
+                        jam_view(v, cfg.jam_train, r)
+                    }
                 };
+                let (va, vb) = (
+                    jam(&data.train[si].view_a, &mut rng),
+                    jam(&data.train[si].view_b, &mut rng),
+                );
                 let (ea, ca) = enc.forward_cache(&va);
                 z.push(ea);
                 cache.push(ca);
@@ -726,6 +766,7 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
     // hypothesis being tested here.
     let mut jam_acc = Vec::with_capacity(JAM_LEVELS.len());
     let mut jam_tonal_acc = Vec::with_capacity(JAM_LEVELS.len());
+    let mut jam_mult_acc = Vec::with_capacity(JAM_LEVELS.len());
     for &sigma in &JAM_LEVELS {
         let mut jrng = StdRng::seed_from_u64(JAM_SEED);
         let broadband: Vec<[f32; EMB]> = data
@@ -754,6 +795,20 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
             &test_lab,
             data.n_classes,
         ));
+
+        let mut mrng = StdRng::seed_from_u64(JAM_SEED);
+        let mult: Vec<[f32; EMB]> = data
+            .test
+            .iter()
+            .map(|s| enc.forward(&jam_view_mult(&s.view_a, sigma, &mut mrng)))
+            .collect();
+        jam_mult_acc.push(linear_probe(
+            &train_emb,
+            &train_lab,
+            &mult,
+            &test_lab,
+            data.n_classes,
+        ));
     }
 
     DeepEval {
@@ -767,6 +822,7 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
         },
         jam_acc,
         jam_tonal_acc,
+        jam_mult_acc,
     }
 }
 
