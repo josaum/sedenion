@@ -1,0 +1,9 @@
+# Makes uav-viewer its own pnpm root, so a plain `pnpm install` here is NOT captured
+# by any pnpm workspace higher up the tree (e.g. one rooted at a developer's $HOME).
+packages: []
+
+# esbuild (pulled in by vite) ships a postinstall; pnpm blocks build scripts by
+# default. It is safe here — allow it so `pnpm install` completes without prompts
+# or a nonzero ERR_PNPM_IGNORED_BUILDS exit.
+allowBuilds:
+  esbuild: true

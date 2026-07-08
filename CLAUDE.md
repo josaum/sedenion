@@ -80,9 +80,13 @@ cargo run --release --bin export-uav-arrow -- ../uav-viewer/public/flights/nav-d
 ```
 
 ### uav-viewer (TypeScript / Vite)
+Package manager is **pnpm** (committed `pnpm-lock.yaml`; do not add `package-lock.json`).
+A local `uav-viewer/pnpm-workspace.yaml` makes this its own pnpm root — it isolates the
+package from any pnpm workspace higher up the tree (e.g. one rooted at a dev's `$HOME`)
+and allowlists esbuild's build script — so a plain `pnpm install` here is correct.
 ```bash
 cd uav-viewer
-pnpm install       # note: repo currently carries package-lock.json (npm); prefer pnpm
+pnpm install       # self-contained via local pnpm-workspace.yaml
 pnpm dev           # vite --host 127.0.0.1
 pnpm build         # tsc && vite build
 ```
@@ -139,8 +143,9 @@ Notable APIs the bake-offs rely on:
 - **Numbers in READMEs/PAPER.md are reproducible artifacts.** `nav-bakeoff/PAPER.md`
   Appendix A is a claim→command map. When you change a bake-off, re-run it and paste
   fresh output into the tables rather than editing numbers by hand.
-- CSV outputs are committed and consumed for plotting: `nav-bakeoff` writes
-  `bakeoff_results.csv`, `nav_repr_results.csv`, `nav_repr_filter_results.csv`.
+- CSV outputs are **gitignored build artifacts, not committed** (`nav-bakeoff/.gitignore`):
+  running the bake-offs regenerates `bakeoff_results.csv`, `nav_repr_results.csv`,
+  `nav_repr_filter_results.csv` in the crate dir for plotting.
 - `repr-bakeoff/data/` (MNIST) is gitignored — fetch with `./fetch_mnist.sh`.
 - Rust dev deps: `criterion` (benches). `nav-bakeoff` also uses `arrow`, `memmap2`,
   `bytes` for the Arrow IPC export path (`src/real_data.rs`).

@@ -217,13 +217,13 @@ This repo actually hosts the `sedenion` research project (see `README.md`), whic
 
 ### Components
 - `sedenion/`, `repr-bakeoff/`, `nav-bakeoff/` — Rust crates, pinned to Rust 1.96.0 via `rust-toolchain.toml` (rustup auto-installs it on first `cargo` call).
-- `uav-viewer/` — Vite + TypeScript + Three.js web app (the runnable "application"). Uses npm (`package-lock.json`); `npm run dev` serves on `http://127.0.0.1:5173/`.
+- `uav-viewer/` — Vite + TypeScript + Three.js web app (the runnable "application"). Uses **pnpm** (`pnpm-lock.yaml`); a local `pnpm-workspace.yaml` makes it its own pnpm root (isolated from any `$HOME` workspace, esbuild build allowlisted). `pnpm install && pnpm dev` serves on `http://127.0.0.1:5173/`.
 - `repr-bakeoff/tools/ref_pure.py`, `nav-bakeoff/tools/*.py` — Python 3 helpers.
 
 ### Lint / test / build / run
 - Rust lint: `cargo clippy --release --all-targets` per crate. Note: clippy currently emits **warnings only** (not denied), so a clean-with-warnings result is expected.
 - Rust tests: `cargo test --release` per crate. All pass offline.
-- Web viewer: `npm run build` = `tsc && vite build` (typecheck + prod build); `npm run dev` for the dev server.
+- Web viewer: `pnpm build` = `tsc && vite build` (typecheck + prod build); `pnpm dev` for the dev server. Run `pnpm install` from `uav-viewer/` (never npm — no `package-lock.json`).
 - SIGReg reference check is dependency-free stdlib Python: `python3 repr-bakeoff/tools/ref_pure.py` → expected `mean_over_slices_noN = 2.07709580`.
 
 ### Non-obvious gotchas
