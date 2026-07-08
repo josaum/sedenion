@@ -235,6 +235,23 @@ reckoning 531.46 m; supervised dense bias aid 452.64 m; dense JEPA+fine-tune
 459.84 m; sedenion+auto-ZDA 518.64 m.
 ```
 
+### UAV Flight Viewer
+
+The viewer replays an Arrow IPC flight exported by `nav-bakeoff`. Generate a default
+flight first (it is gitignored), then serve the app. Uses **pnpm**; a local
+`uav-viewer/pnpm-workspace.yaml` makes it a self-contained pnpm root.
+
+```bash
+cd nav-bakeoff
+cargo run --release --bin export-uav-arrow   # writes ../uav-viewer/public/flights/nav-default.arrow
+cd ../uav-viewer
+pnpm install                                  # self-contained; do not use npm
+pnpm dev                                       # http://127.0.0.1:5173/
+```
+
+Or drag-drop any Arrow IPC flight onto the running page. `pnpm build` (`tsc && vite build`)
+produces a static bundle in `dist/`.
+
 ## Evidence Map
 
 | Claim | Artifact |
