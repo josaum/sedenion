@@ -249,8 +249,18 @@ Three honest sub-findings:
   still trails dense (87.3% / 76.9%). More capacity buys accuracy; it does not buy
   jam-robustness.
 
-The verdict, across depth, ZDA, learnable PHM, jam-augmented training, and
-capacity-matching: **a capacity-fair sedenion representation is competitive with —
+- **Tonal (rank-1) jamming behaves the same as broadband.** A natural rescue
+  hypothesis — that an *isotropic* code should beat a *collapsed* one against a
+  narrowband jammer that concentrates its energy in one random direction — is
+  **falsified**: energy-matched tonal jamming produces retention within a point of
+  broadband on every arm (dense 87.3% either way; sedenion 48–57%). A random rank-1
+  input direction projects onto the dense arm's embedding signal-axis only weakly
+  (~`1/√INPUT`) and is mixed across the embedding by the encoder much like broadband,
+  so the threat models coincide. Both curves print from `deep robust`.
+
+The verdict, across depth, ZDA, learnable PHM, jam-augmented training, capacity-
+matching, and two jamming models (broadband + tonal): **a capacity-fair sedenion
+representation is competitive with —
 even better than — dense on clean accuracy at fewer parameters, but under the
 faithful SIGReg objective it is consistently *less* jam-resistant than dense.** The
 isotropy SIGReg rewards is structurally at odds with broadband-jamming robustness,

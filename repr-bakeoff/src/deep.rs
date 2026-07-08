@@ -572,7 +572,8 @@ fn jam_gauss(rng: &mut StdRng) -> f32 {
     (-2.0 * u1.ln()).sqrt() * (2.0 * std::f32::consts::PI * u2).cos()
 }
 
-/// Jam one view with broadband additive noise of the given std.
+/// Jam one view with broadband additive noise of the given std (full-rank: every
+/// input axis is corrupted independently).
 fn jam_view(v: &[f32; INPUT], sigma: f32, rng: &mut StdRng) -> [f32; INPUT] {
     let mut out = *v;
     if sigma > 0.0 {
@@ -583,11 +584,36 @@ fn jam_view(v: &[f32; INPUT], sigma: f32, rng: &mut StdRng) -> [f32; INPUT] {
     out
 }
 
-/// A trained deep arm's evaluation: the shared metrics plus the anti-jamming
-/// accuracy curve (one entry per `JAM_LEVELS`).
+/// Jam one view with a *tonal* (rank-1) interferer: a single random unit direction
+/// scaled to the same total energy as broadband std `sigma` (`‖A·d‖ = sigma·√INPUT`).
+/// This is the realistic narrowband-jammer model, and the discriminating test: a
+/// rank-1 hit in a random direction wrecks a *collapsed* code (all signal in one
+/// axis) but only grazes an *isotropic* one (signal spread across many axes).
+fn jam_view_tonal(v: &[f32; INPUT], sigma: f32, rng: &mut StdRng) -> [f32; INPUT] {
+    let mut out = *v;
+    if sigma > 0.0 {
+        let mut d = [0.0f32; INPUT];
+        let mut norm_sq = 0.0f32;
+        for di in d.iter_mut() {
+            *di = jam_gauss(rng);
+            norm_sq += *di * *di;
+        }
+        // Energy-match to broadband: total injected energy = INPUT * sigma^2.
+        let amp = sigma * (INPUT as f32).sqrt() / norm_sq.sqrt().max(1e-9);
+        for (o, di) in out.iter_mut().zip(d.iter()) {
+            *o += amp * di;
+        }
+    }
+    out
+}
+
+/// A trained deep arm's evaluation: the shared metrics plus two anti-jamming
+/// accuracy curves (one entry per `JAM_LEVELS`) — broadband (full-rank) and tonal
+/// (rank-1), energy-matched at each level.
 pub struct DeepEval {
     pub eval: EvalResult,
     pub jam_acc: Vec<f64>,
+    pub jam_tonal_acc: Vec<f64>,
 }
 
 /// Minibatch Adam training of a deep arm, then evaluate with the shared metrics
@@ -699,9 +725,10 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
     // given jam level = a more jam-resistant code — the "SIGReg -> anti-jamming"
     // hypothesis being tested here.
     let mut jam_acc = Vec::with_capacity(JAM_LEVELS.len());
+    let mut jam_tonal_acc = Vec::with_capacity(JAM_LEVELS.len());
     for &sigma in &JAM_LEVELS {
         let mut jrng = StdRng::seed_from_u64(JAM_SEED);
-        let jammed: Vec<[f32; EMB]> = data
+        let broadband: Vec<[f32; EMB]> = data
             .test
             .iter()
             .map(|s| enc.forward(&jam_view(&s.view_a, sigma, &mut jrng)))
@@ -709,7 +736,21 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
         jam_acc.push(linear_probe(
             &train_emb,
             &train_lab,
-            &jammed,
+            &broadband,
+            &test_lab,
+            data.n_classes,
+        ));
+
+        let mut trng = StdRng::seed_from_u64(JAM_SEED);
+        let tonal: Vec<[f32; EMB]> = data
+            .test
+            .iter()
+            .map(|s| enc.forward(&jam_view_tonal(&s.view_a, sigma, &mut trng)))
+            .collect();
+        jam_tonal_acc.push(linear_probe(
+            &train_emb,
+            &train_lab,
+            &tonal,
             &test_lab,
             data.n_classes,
         ));
@@ -725,6 +766,7 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
             support,
         },
         jam_acc,
+        jam_tonal_acc,
     }
 }
 

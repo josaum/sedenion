@@ -231,6 +231,7 @@ fn run_deep(
 
     let mut per_arm: Vec<Vec<Result>> = (0..arms.len()).map(|_| Vec::new()).collect();
     let mut per_arm_jam: Vec<Vec<Vec<f64>>> = (0..arms.len()).map(|_| Vec::new()).collect();
+    let mut per_arm_tonal: Vec<Vec<Vec<f64>>> = (0..arms.len()).map(|_| Vec::new()).collect();
     for seed in 0..seeds {
         let data = make_data(seed);
         for (ai, a) in arms.iter().enumerate() {
@@ -247,11 +248,15 @@ fn run_deep(
             let de = train_deep_and_eval(enc, &data, &cfg);
             per_arm[ai].push(de.eval);
             per_arm_jam[ai].push(de.jam_acc);
+            per_arm_tonal[ai].push(de.jam_tonal_acc);
         }
     }
     let names: Vec<&str> = arms.iter().map(|a| a.name).collect();
     print_metric_tables(&names, &per_arm);
+    println!("\n[broadband jamming — full-rank noise, every input axis corrupted]");
     print_jam_table(&names, &per_arm_jam, &JAM_LEVELS);
+    println!("\n[tonal jamming — rank-1 interferer, one random direction, energy-matched]");
+    print_jam_table(&names, &per_arm_tonal, &JAM_LEVELS);
 }
 
 /// Print the anti-jamming curve: probe accuracy as the test inputs are jammed with
