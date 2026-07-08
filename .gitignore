@@ -1,5 +1,11 @@
 target/
 
+# Agent memory notes — not project source
+memory/
+
+# Generated deliverable archives
+fly-ai-2026.zip
+
 # Node / Python build artifacts (repo-wide safety net)
 node_modules/
 dist/

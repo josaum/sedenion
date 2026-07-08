@@ -1,6 +1,19 @@
 import "./style.css";
 import { tableFromIPC, type Table, type Vector } from "apache-arrow";
 import * as THREE from "three";
+import { InputManager, type FlightCommand } from "./input";
+import { DronePhysics } from "./physics";
+import { Jamming } from "./jamming";
+import {
+  bindModeButtons,
+  updateModeBanner,
+  updateControllerStatus,
+  updateGpsReadout,
+  showHelp,
+  hideHelp,
+  type AppMode,
+  type GpsState,
+} from "./ui";
 
 type FlightColumns = {
   label: string;
@@ -29,7 +42,7 @@ type FlightColumns = {
   };
 };
 
-type CameraPreset = "chase" | "orbit" | "top" | "command";
+type CameraPreset = "chase" | "orbit" | "top" | "command" | "fpv";
 type LayerName = "trajectory" | "vectors" | "airspace" | "range";
 type MissionPhase = "acquisition" | "tracking" | "assessment" | "recovery";
 
@@ -176,6 +189,14 @@ const layerState: Record<LayerName, boolean> = {
   airspace: true,
   range: true,
 };
+
+let appMode: AppMode = "demo";
+const input = new InputManager();
+const physics = new DronePhysics();
+const jamming = new Jamming(document.body);
+const manualStartPosition = new THREE.Vector3();
+let manualStartCursor = 0;
+const helpOverlay = document.getElementById("helpOverlay");
 
 function makeSky(): THREE.Group {
   const g = new THREE.Group();
@@ -1601,6 +1622,117 @@ function updatePresentationMode() {
   presentationMode.textContent = presentation ? "Sair" : "Apresentação";
 }
 
+function findClosestSample(position: THREE.Vector3): number {
+  if (!current) return 0;
+  let bestIndex = 0;
+  let bestDist = Infinity;
+  const step = Math.max(1, Math.floor(current.length / 800));
+  for (let i = 0; i < current.length; i += step) {
+    const p = toScene(current.px[i], current.py[i], current.pz[i]);
+    const d = p.distanceToSquared(position);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIndex = i;
+    }
+  }
+  return current.t[bestIndex] - current.t[0];
+}
+
+function jammingToGpsState(): GpsState {
+  return {
+    fix: jamming.hasFix ? "3d" : "none",
+    satellites: jamming.sats,
+    jammed: jamming.active,
+    hdop: jamming.epu,
+  };
+}
+
+function setAppMode(mode: AppMode) {
+  if (mode === appMode) return;
+
+  const leavingManual = appMode === "manual" || appMode === "manual-jammed";
+  const enteringManual = mode === "manual" || mode === "manual-jammed";
+
+  if (!leavingManual && enteringManual) {
+    // Start manual flight from the current replay position, or a hover position.
+    if (current) {
+      manualStartPosition.copy(drone.position);
+      manualStartCursor = cursor;
+    } else {
+      manualStartPosition.set(0, 20 / Math.max(viewScale, 0.001), 0);
+      manualStartCursor = 0;
+    }
+    physics.reset(manualStartPosition.clone());
+  }
+
+  if (mode === "manual-jammed") {
+    jamming.setActive(true);
+    jamming.setIntensity(0.65);
+  } else {
+    jamming.setActive(false);
+  }
+
+  if (leavingManual && !enteringManual) {
+    // Resume replay from the sample closest to the manual position.
+    if (current) {
+      cursor = findClosestSample(drone.position);
+      scrubInput.value = String(cursor / current.duration);
+    }
+  }
+
+  appMode = mode;
+  updateModeBanner(mode);
+}
+
+function cycleCameraPreset() {
+  const presets: CameraPreset[] = ["chase", "orbit", "top", "command", "fpv"];
+  const idx = presets.indexOf(cameraPreset);
+  cameraPreset = presets[(idx + 1) % presets.length];
+  updateCameraButtons();
+}
+
+function handleActions(cmd: FlightCommand) {
+  if (cmd.reset) {
+    cmd.reset = false;
+    if (appMode !== "demo") {
+      physics.reset(manualStartPosition.clone());
+    }
+  }
+  if (cmd.cycleCamera) {
+    cmd.cycleCamera = false;
+    cycleCameraPreset();
+  }
+  if (cmd.toggleJam) {
+    cmd.toggleJam = false;
+    if (appMode === "manual") {
+      setAppMode("manual-jammed");
+    } else if (appMode === "manual-jammed") {
+      setAppMode("manual");
+    }
+  }
+  if (cmd.toggleMode) {
+    cmd.toggleMode = false;
+    const modes: AppMode[] = ["demo", "manual", "manual-jammed"];
+    const idx = modes.indexOf(appMode);
+    setAppMode(modes[(idx + 1) % modes.length]);
+  }
+  if (cmd.pause) {
+    cmd.pause = false;
+    if (appMode === "demo") {
+      playing = !playing;
+      playPause.textContent = playing ? "Pausar" : "Retomar";
+    }
+  }
+  if (cmd.toggleHelp) {
+    cmd.toggleHelp = false;
+    if (helpOverlay) {
+      const hidden = helpOverlay.getAttribute("aria-hidden") !== "false";
+      if (hidden) showHelp();
+      else hideHelp();
+    }
+  }
+}
+
 function fitWorld(flight: FlightColumns) {
   // The trajectory is pre-scaled into scene units by `toScene`, so the scenery
   // stays at origin/native size and the flight fills a consistent footprint.
@@ -1693,6 +1825,11 @@ function updateFlight(dt: number) {
     const height = THREE.MathUtils.clamp(orbitDistance * 1.45, 95, 520);
     camera.position.lerp(new THREE.Vector3(p.x, height, p.z + 0.01), 0.09);
     camera.lookAt(target);
+  } else if (cameraPreset === "fpv") {
+    const offset = new THREE.Vector3(1.2, 0.7, 0).applyQuaternion(drone.quaternion);
+    const wanted = p.clone().add(offset);
+    camera.position.lerp(wanted, 0.2);
+    camera.quaternion.slerp(drone.quaternion, 0.15);
   } else {
     const target = p.clone().add(new THREE.Vector3(0, 5, 0));
     camera.position.lerp(new THREE.Vector3(-118, 54, -96), 0.045);
@@ -1707,6 +1844,141 @@ function updateFlight(dt: number) {
     <dt>velocidade</dt><dd>${Math.hypot(current.vx[i], current.vy[i], current.vz[i]).toFixed(2)} m/s</dd>
     <dt>acel.</dt><dd>${Math.hypot(current.ax[i], current.ay[i], current.az[i]).toFixed(2)} m/s²</dd>
   </dl>`;
+
+  updateGpsReadout(jammingToGpsState());
+}
+
+function updateManualFlight(dt: number, cmd: FlightCommand) {
+  const prevVel = physics.velocity.clone();
+  const throttle = cmd.boost ? 1 : cmd.throttle;
+
+  physics.step(
+    {
+      throttle,
+      roll: cmd.roll,
+      pitch: cmd.pitch,
+      yaw: cmd.yaw,
+      boost: cmd.boost,
+      brake: cmd.brake,
+      reset: false,
+      toggleJam: false,
+      toggleMode: false,
+      cycleCamera: false,
+      pause: false,
+      toggleHelp: false,
+    },
+    dt,
+  );
+
+  if (cmd.brake) {
+    const brakeFactor = Math.max(0, 1 - 5 * dt);
+    physics.velocity.multiplyScalar(brakeFactor);
+  }
+
+  if (appMode === "manual-jammed") {
+    jamming.update(physics.position, physics.velocity, dt);
+  }
+
+  const reportedPos =
+    appMode === "manual-jammed" ? jamming.reportedPosition : physics.position;
+  const reportedVel =
+    appMode === "manual-jammed" ? jamming.reportedVelocity : physics.velocity;
+
+  drone.position.copy(reportedPos);
+  ghost.position.set(reportedPos.x, 0.02, reportedPos.z);
+  updateGroundShadow(drone, reportedPos.y);
+  drone.quaternion.copy(physics.quaternion);
+
+  const accel = physics.velocity.clone().sub(prevVel).divideScalar(Math.max(dt, 0.0001));
+
+  updateVectorLine(velocityVector, reportedPos, reportedVel, viewScale * 0.9);
+  updateVectorLine(accelVector, reportedPos, accel, viewScale * 0.5);
+  updateVectorLine(
+    altitudeLine,
+    new THREE.Vector3(reportedPos.x, 0.03, reportedPos.z),
+    new THREE.Vector3(0, reportedPos.y, 0),
+    1,
+  );
+
+  for (const blade of rotorBlades) {
+    blade.rotation.z += dt * 42 * (0.5 + throttle * 0.8);
+  }
+
+  updateInstrument(reportedVel, accel);
+  updateManualCamera(dt);
+  updateManualBriefing(reportedVel);
+
+  readout.innerHTML = `<dl>
+    <dt>modo</dt><dd>${appMode === "manual" ? "manual" : "manual + jam"}</dd>
+    <dt>posição</dt><dd>${reportedPos.x.toFixed(1)}, ${reportedPos.y.toFixed(1)}, ${reportedPos.z.toFixed(1)} m</dd>
+    <dt>velocidade</dt><dd>${reportedVel.length().toFixed(2)} m/s</dd>
+    <dt>acel.</dt><dd>${accel.length().toFixed(2)} m/s²</dd>
+  </dl>`;
+
+  updateGpsReadout(jammingToGpsState());
+}
+
+function updateManualCamera(_dt: number) {
+  const p = drone.position;
+  const reportedVel =
+    appMode === "manual-jammed" ? jamming.reportedVelocity : physics.velocity;
+
+  if (cameraPreset === "chase") {
+    const back =
+      reportedVel.lengthSq() > 0.001
+        ? reportedVel.clone().normalize().multiplyScalar(-58)
+        : new THREE.Vector3(-46, 0, -46);
+    const wanted = p.clone().add(back).add(new THREE.Vector3(0, 28, 0));
+    camera.position.lerp(wanted, 0.045);
+    camera.lookAt(p.x, p.y + 4, p.z);
+  } else if (cameraPreset === "orbit") {
+    const target = p.clone().add(new THREE.Vector3(0, 3.5, 0));
+    const cp = Math.cos(orbitPitch);
+    const offset = new THREE.Vector3(
+      Math.sin(orbitYaw) * cp * orbitDistance,
+      Math.sin(orbitPitch) * orbitDistance,
+      Math.cos(orbitYaw) * cp * orbitDistance,
+    );
+    camera.position.lerp(target.clone().add(offset), 0.12);
+    camera.lookAt(target);
+  } else if (cameraPreset === "top") {
+    const target = p.clone();
+    const height = THREE.MathUtils.clamp(orbitDistance * 1.45, 95, 520);
+    camera.position.lerp(new THREE.Vector3(p.x, height, p.z + 0.01), 0.09);
+    camera.lookAt(target);
+  } else if (cameraPreset === "fpv") {
+    const offset = new THREE.Vector3(1.2, 0.7, 0).applyQuaternion(drone.quaternion);
+    const wanted = p.clone().add(offset);
+    camera.position.lerp(wanted, 0.2);
+    camera.quaternion.slerp(drone.quaternion, 0.15);
+  } else {
+    const target = p.clone().add(new THREE.Vector3(0, 5, 0));
+    camera.position.lerp(new THREE.Vector3(-118, 54, -96), 0.045);
+    camera.lookAt(target);
+  }
+}
+
+function updateManualBriefing(vel: THREE.Vector3) {
+  const speed = vel.length();
+  const phase: MissionPhase = speed > 1 ? "tracking" : "acquisition";
+  const drift =
+    appMode === "manual-jammed"
+      ? physics.position.distanceTo(jamming.reportedPosition)
+      : null;
+  const link =
+    appMode === "manual-jammed"
+      ? Math.round(THREE.MathUtils.clamp(99 - jamming.intensity * 35, 60, 99))
+      : 98;
+  hudPhase.textContent = phaseLabel(phase);
+  hudSpeed.textContent = `${speed.toFixed(1)} m/s`;
+  hudAlt.textContent = `${drone.position.y.toFixed(1)} m`;
+  hudDrift.textContent = drift == null ? "--" : `${drift.toFixed(1)} m`;
+  hudLink.textContent = `${link}%`;
+  missionPhase.textContent = `${phaseLabel(phase)}: ${missionCopy(phase)} Câmera ${cameraPresetLabel(cameraPreset)}; camadas visíveis: ${layerSummary()}.`;
+  document.documentElement.style.setProperty(
+    "--track-energy",
+    String(0.22 + Math.min(speed / 16, 0.55)),
+  );
 }
 
 function updateBriefing(flight: FlightColumns, i: number, vel: THREE.Vector3) {
@@ -1774,6 +2046,7 @@ function cameraPresetLabel(preset: CameraPreset) {
   if (preset === "chase") return "Cauda";
   if (preset === "orbit") return "Órbita";
   if (preset === "top") return "Topo";
+  if (preset === "fpv") return "FPV";
   return "Comando";
 }
 
@@ -1851,7 +2124,17 @@ function resize() {
 function loop(now: number) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
-  updateFlight(dt);
+
+  const cmd = input.sample();
+  handleActions(cmd);
+
+  if (appMode === "demo") {
+    updateFlight(dt);
+  } else {
+    updateManualFlight(dt, cmd);
+  }
+
+  updateControllerStatus(input.connectedGamepad);
   updateScenery(now / 1000);
   renderer.render(scene, camera);
   raf = requestAnimationFrame(loop);
@@ -1889,6 +2172,18 @@ scrubInput.addEventListener("input", () => {
   playPause.textContent = "Retomar";
 });
 
+bindModeButtons((mode) => setAppMode(mode));
+
+// Show the help overlay on first visit.
+try {
+  if (!localStorage.getItem("uav-help-seen")) {
+    showHelp();
+    localStorage.setItem("uav-help-seen", "1");
+  }
+} catch {
+  /* ignore private-browsing localStorage failures */
+}
+
 for (const eventName of ["dragenter", "dragover"]) {
   window.addEventListener(eventName, (event) => {
     event.preventDefault();
@@ -1911,6 +2206,7 @@ window.addEventListener("drop", async (event) => {
 
 canvas.addEventListener("pointerdown", (event) => {
   if (cameraPreset !== "orbit") return;
+  if (appMode !== "demo") return;
   pointerDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
   canvas.setPointerCapture(event.pointerId);
 });
@@ -1933,6 +2229,7 @@ canvas.addEventListener(
   "wheel",
   (event) => {
     if (cameraPreset !== "orbit") return;
+    if (appMode !== "demo") return;
     event.preventDefault();
     orbitDistance = THREE.MathUtils.clamp(
       orbitDistance * (1 + event.deltaY * 0.001),
@@ -1951,5 +2248,6 @@ updateLayerButtons();
 updatePlaybackRate();
 updatePresentationMode();
 applyLayerVisibility();
+updateModeBanner(appMode);
 loadDefault();
 raf = requestAnimationFrame(loop);

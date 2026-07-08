@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Resilient CNS for U-Space — FLY AI 2026 Proposal</title>
+<style>
+/* === RESET & BASE === */
+body { margin: 0; padding: 0; font-family: Georgia, "Noto Serif", serif; font-size: 11pt; line-height: 1.6; color: #333; text-align: justify; text-align-last: left; string-set: doctitle ""; }
+h1 { string-set: doctitle content(); }
+
+/* === PAGE SETUP === */
+@page { size: A4; margin: 2.5cm 2cm; @top-center { content: string(doctitle); font-size: 9pt; color: #666; } @bottom-center { content: counter(page); font-size: 9pt; } }
+@page :first { margin: 0; @top-center { content: none; } @bottom-center { content: none; } }
+@page cover { @top-center { content: none; } @bottom-center { content: none; } }
+@page toc { @top-center { content: none; } @bottom-center { content: none; } }
+
+.cover { page: cover; }
+.toc-page { page: toc; }
+
+/* === COVER === */
+.cover { width: 210mm; height: 297mm; margin: 0; position: relative; overflow: hidden; page-break-after: always; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 70%, #1a1a2e 100%); }
+.cover::before { content: ''; position: absolute; top: -50mm; right: -30mm; width: 180mm; height: 180mm; background: radial-gradient(circle, rgba(142,68,173,0.15) 0%, transparent 70%); border-radius: 50%; }
+.cover::after { content: ''; position: absolute; bottom: -40mm; left: -40mm; width: 200mm; height: 200mm; background: radial-gradient(circle, rgba(41,128,185,0.12) 0%, transparent 70%); border-radius: 50%; }
+.cover-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 80%; z-index: 10; }
+.cover-badge { display: inline-block; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 6px 18px; font-size: 10pt; color: #a0c4ff; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 30px; }
+.cover-title { font-size: 28pt; font-weight: 700; color: #fff; margin-bottom: 15px; line-height: 1.2; letter-spacing: -0.5px; }
+.cover-subtitle { font-size: 13pt; color: #a0c4ff; margin-bottom: 60px; font-style: italic; font-weight: 400; }
+.cover-meta { font-size: 11pt; color: #ccc; line-height: 2; }
+.cover-meta strong { color: #fff; font-weight: 600; }
+.cover-line { width: 60px; height: 2px; background: linear-gradient(90deg, #8E44AD, #2980B9); margin: 30px auto; }
+.cover-bottom { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 10; }
+.cover-bottom p { font-size: 9pt; color: #777; margin: 3px 0; }
+
+/* === TOC === */
+.toc-page { page-break-after: always; padding-top: 2cm; }
+.toc-title { font-size: 20pt; font-weight: bold; color: #1a1a2e; margin-bottom: 1cm; border-bottom: 2px solid #8E44AD; padding-bottom: 0.3cm; }
+.toc { list-style: none; padding: 0; margin: 0; }
+.toc li { margin: 0.4em 0; }
+.toc a { text-decoration: none; color: #333; display: flex; justify-content: space-between; }
+.toc a::after { content: leader('.') target-counter(attr(href url), page); }
+.toc-h1 { font-weight: bold; font-size: 11pt; }
+.toc-h2 { padding-left: 1.5em; font-size: 10.5pt; }
+.toc-h3 { padding-left: 3em; font-size: 10pt; color: #555; }
+
+/* === HEADINGS === */
+h1 { font-size: 20pt; color: #1a1a2e; border-bottom: 2px solid #8E44AD; padding-bottom: 0.3cm; margin-top: 0; margin-bottom: 0.8cm; page-break-after: avoid; }
+h2 { font-size: 14pt; color: #16213e; margin-top: 1cm; margin-bottom: 0.5cm; border-left: 4px solid #2980B9; padding-left: 0.5cm; page-break-after: avoid; }
+h3 { font-size: 12pt; color: #333; margin-top: 0.8cm; margin-bottom: 0.4cm; font-weight: bold; page-break-after: avoid; }
+
+/* === TABLES (three-line) === */
+table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 10pt; max-width: 100%; box-sizing: border-box; }
+thead { border-top: 2px solid #333; border-bottom: 1px solid #333; }
+tbody { border-bottom: 2px solid #333; }
+th { padding: 8px 10px; text-align: left; font-weight: bold; background: #f8f8f8; }
+td { padding: 8px 10px; text-align: left; vertical-align: top; }
+tr { page-break-inside: avoid; }
+caption { caption-side: top; text-align: left; font-weight: bold; margin-bottom: 0.5em; color: #333; }
+caption::before { content: attr(data-label) ": "; font-weight: bold; }
+
+/* === FIGURES === */
+figure { margin: 1.2em 0; text-align: center; page-break-inside: avoid; }
+figure img { max-width: 90%; height: auto; }
+figcaption { font-size: 10pt; color: #555; margin-top: 0.5em; text-align: center; font-style: italic; }
+figcaption::before { content: attr(data-label) ": "; font-weight: bold; font-style: normal; }
+
+/* === BLOCKQUOTE / INSIGHT === */
+.insight { border-left: 4px solid #8E44AD; padding-left: 1em; margin: 1em 0; background: #faf8fc; padding: 1em 1em 1em 1.5em; page-break-inside: avoid; }
+.insight-title { font-weight: bold; color: #8E44AD; margin-bottom: 0.5em; }
+
+/* === MATH === */
+.math { font-family: "Times New Roman", serif; font-style: italic; }
+.math-display { text-align: center; margin: 1em 0; font-family: "Times New Roman", serif; font-style: italic; }
+
+/* === OVERFLOW PREVENTION === */
+pre, table, figure, img, svg, blockquote { max-width: 100%; box-sizing: border-box; }
+pre { overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+a { word-break: break-all; color: #2980B9; text-decoration: none; }
+code { word-break: break-word; font-family: "Courier New", monospace; font-size: 9.5pt; background: #f5f5f5; padding: 1px 4px; }
+
+/* === REFERENCES === */
+.references { font-size: 10pt; }
+.references li { padding-left: 2em; text-indent: -2em; margin-bottom: 0.5em; }
+
+/* === CITE === */
+a.cite { color: black; text-decoration: none; vertical-align: super; font-size: 0.75em; }
+
+/* === PAGEBREAK === */
+.page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER ==================== -->
+<div class="cover">
+  <div class="cover-content">
+    <div class="cover-badge">FLY AI 2026 Proposal</div>
+    <h1 class="cover-title">Resilient CNS for U-Space</h1>
+    <p class="cover-subtitle">Anti-Jamming Mesh Communications via<br>Higher-Order Algebra &amp; Neuro-Symbolic Runtime</p>
+    <div class="cover-line"></div>
+    <div class="cover-meta">
+      <p><strong>Mycelia Platform</strong> + <strong>Sedenion 16D Algebra</strong></p>
+      <p>Dionisio Chiuratto Agourakis &middot; JAI/Embria</p>
+      <p>EUROCONTROL Innovation Hub &middot; Br&eacute;tigny &middot; 12-13 November 2026</p>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <p>Category: CNS / Trustworthy AI &middot; Maturity: Operational + Research</p>
+    <p>Live demo available &middot; Fully offline capable</p>
+  </div>
+</div>
+
+<!-- ==================== TOC ==================== -->
+<div class="toc-page">
+  <div class="toc-title">Contents</div>
+  <ul class="toc">
+    <li class="toc-h1"><a href="#sec1">1. Executive Summary</a></li>
+    <li class="toc-h1"><a href="#sec2">2. The Problem: GNSS Interference in European Aviation</a></li>
+    <li class="toc-h2"><a href="#sec2-1">2.1 Scale of the Threat</a></li>
+    <li class="toc-h2"><a href="#sec2-2">2.2 The U-Space Vulnerability Gap</a></li>
+    <li class="toc-h1"><a href="#sec3">3. The Mycelia Platform: Certifiable Neuro-Symbolic Runtime</a></li>
+    <li class="toc-h2"><a href="#sec3-1">3.1 Architecture Overview</a></li>
+    <li class="toc-h2"><a href="#sec3-2">3.2 Spatial Grasp Technology for Decentralised Swarms</a></li>
+    <li class="toc-h2"><a href="#sec3-3">3.3 Three Egress Gates: Structural, EVT, and Operational</a></li>
+    <li class="toc-h1"><a href="#sec4">4. The Sedenion Layer: 16D Algebraic Signal Encoding</a></li>
+    <li class="toc-h2"><a href="#sec4-1">4.1 From Octonion Space-Time Codes to Sedenion Constellations</a></li>
+    <li class="toc-h2"><a href="#sec4-2">4.2 L_a and R_a as Signal Operators</a></li>
+    <li class="toc-h2"><a href="#sec4-3">4.3 Zero-Divisor-Aware Integrity Checking</a></li>
+    <li class="toc-h1"><a href="#sec5">5. Integration: Mycelia + Sedenion for Anti-Jamming CNS</a></li>
+    <li class="toc-h2"><a href="#sec5-1">5.1 Architecture</a></li>
+    <li class="toc-h2"><a href="#sec5-2">5.2 The Anti-Jamming Mechanism</a></li>
+    <li class="toc-h2"><a href="#sec5-3">5.3 Parameter Efficiency at the Edge</a></li>
+    <li class="toc-h1"><a href="#sec6">6. Safety Case and Certifiability</a></li>
+    <li class="toc-h1"><a href="#sec7">7. ATM Relevance and U-Space Integration</a></li>
+    <li class="toc-h1"><a href="#sec8">8. Roadmap and FLY AI Demonstration</a></li>
+    <li class="toc-h2"><a href="#sec8-5">8.5 Interactive UAV Simulator</a></li>
+    <li class="toc-h1"><a href="#sec9">9. Conclusion</a></li>
+    <li class="toc-h1"><a href="#refs">References</a></li>
+  </ul>
+</div>
+
+<!-- ==================== SECTION 1 ==================== -->
+<h1 id="sec1">1. Executive Summary</h1>
+
+<p>On 27 March 2026, EASA and EUROCONTROL published a <strong>Joint Action Plan on GNSS Interference</strong>, declaring it a "significant and evolving challenge for European aviation"<a href="#ref-8" class="cite">[1]</a>. The plan responds to a letter from 13 EU member states highlighting an escalating number of radio-frequency interference events affecting GNSS-based systems. In parallel, the European Aviation Action Plan for Ensuring Safe Operations during GNSS Interferences, now under public consultation, identifies the need for "technical backups" and "consistent, harmonised guidance" across ANSPs, airlines, and national authorities<a href="#ref-9" class="cite">[2]</a>.</p>
+
+<p>This proposal presents a dual-layer solution that addresses the CNS (Communications, Navigation, Surveillance) resilience gap for U-space operations:</p>
+
+<table>
+<caption data-label="Table 1">Proposal at a glance — dual-layer CNS resilience</caption>
+<thead>
+<tr><th>Layer</th><th>Technology</th><th>Role in CNS Resilience</th><th>Maturity</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Control Plane</strong></td><td>Mycelia Platform (neuro-symbolic AI)</td><td>Decentralised swarm coordination, doctrinal gating, audit trail</td><td>Production (since 2025)</td></tr>
+<tr><td><strong>Signal Plane</strong></td><td>Sedenion 16D Cayley-Dickson Algebra</td><td>Signal constellation encoding, integrity checking, anti-jamming</td><td>Research (Rust implementation)</td></tr>
+</tbody>
+</table>
+
+<p>The <strong>Mycelia platform</strong> is a certifiable neuro-symbolic runtime that constrains AI agents through ontologies, gates every outbound action through three verifiable boundaries, and maintains end-to-end provenance. It has been in production since 2025, currently deployed in military border-surveillance (SISFRON) and aerospace maintenance (S1000D) contexts. Its <strong>Spatial Grasp Technology (SGT)</strong> module implements Sapaty's mosaic-warfare doctrine, enabling UAV swarms to self-organise without a central orchestrator when communications degrade — precisely the DIL (Disconnected / Intermittent / Limited) scenario that GNSS jamming creates.</p>
+
+<p>The <strong>Sedenion layer</strong> is a novel application of 16-dimensional Cayley-Dickson algebra to wireless signal encoding. Building on published research showing that octonion constellations increase diversity product and minimise error probability in space-time coding<a href="#ref-17" class="cite">[3]</a>, the sedenion extension offers: (1) <strong>16x parameter efficiency</strong> through algebraic weight reuse; (2) <strong>non-commutative directional encoding</strong> that naturally resists brute-force jamming; (3) <strong>zero-divisor-aware (ZDA) integrity checking</strong> that detects signal corruption at the algebraic level; and (4) <strong>power-associative polynomial predictors</strong> for channel estimation in dynamic mesh topologies.</p>
+
+<p>Together, these layers form a <strong>certifiable, jamming-resistant CNS stack</strong> for U-space drone operations that shifts the certification target from stochastic neural networks to deterministic algebraic structures — structures that aviation safety thinking already knows how to audit.</p>
+
+<div class="insight">
+<div class="insight-title">Core Insight</div>
+<p>The certification target is not the AI model but the <strong>algebraic structure</strong> that constrains it. Sedenions provide a deterministic signal manifold with verifiable geometric properties. Mycelia provides the runtime that certifies every transition across that manifold. This is the same "certify the structure, not the model" philosophy that the Mycelia platform applies to AI governance, now extended to the physical signal layer.</p>
+</div>
+
+<!-- ==================== SECTION 2 ==================== -->
+<h1 id="sec2">2. The Problem: GNSS Interference in European Aviation</h1>
+
+<h2 id="sec2-1">2.1 Scale of the Threat</h2>
+
+<p>GNSS interference has escalated from a theoretical concern to an operational reality affecting European airspace on a daily basis. Between early 2024 and August 2024, civil airliners experienced up to <strong>1,500 cases of spoofing per day</strong>, primarily in and around conflict zones<a href="#ref-16" class="cite">[4]</a>. The Baltic Sea and North Sea regions have seen particularly concentrated interference, prompting 13 coastal European nations and Iceland to issue a collective statement in January 2026 on "growing GNSS interference"<a href="#ref-11" class="cite">[5]</a>.</p>
+
+<p>The March 2026 EASA-EUROCONTROL Joint Action Plan establishes four priority axes: (1) building a common operational picture of GNSS interference events; (2) developing harmonised guidance to ANSPs and airlines; (3) ensuring rapid and aligned responses; and (4) maintaining safety while limiting impacts on airspace capacity<a href="#ref-8" class="cite">[1]</a>. The plan explicitly acknowledges that current multi-sensor and independent CNS capabilities provide "significant robustness" but notes that "coordination protocols and tactical responses vary widely among ANSPs"<a href="#ref-9" class="cite">[2]</a>.</p>
+
+<table>
+<caption data-label="Table 2">GNSS interference threat taxonomy and mitigation gaps</caption>
+<thead>
+<tr><th>Threat Type</th><th>Mechanism</th><th>Impact on U-Space</th><th>Current Mitigation Gap</th></tr>
+</thead>
+<tbody>
+<tr><td>Jamming</td><td>RF transmitter overwhelms GNSS signal</td><td>Loss of PNT; drone navigation failure</td><td>CRPAs are heavy/expensive; not scalable to small UAVs</td></tr>
+<tr><td>Spoofing</td><td>Counterfeit GNSS signals deceive receiver</td><td>False position/velocity; collision risk</td><td>Anti-spoof algorithms vary; no standard for U-space</td></tr>
+<tr><td>Sweep jamming</td><td>Periodic scanning of all communication channels</td><td>Intermittent CNS degradation</td><td>Mesh networks lack algebraic encoding layer</td></tr>
+<tr><td>Repeat jamming</td><td>Repeats legitimate signal with delay</td><td>Confuses receiver synchronisation</td><td>No structural integrity check at signal level</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec2-2">2.2 The U-Space Vulnerability Gap</h2>
+
+<p>U-space — the European framework for managing drone operations in urban and controlled airspace — depends critically on CNS services that are themselves dependent on GNSS. When GNSS is jammed or spoofed, U-space services face a cascading failure: the drone loses position awareness, the U-space service provider loses tracking data, and the ATM system loses situational awareness of the airspace user.</p>
+
+<p>Current U-space CNS resilience strategies focus on <strong>multi-layer PNT</strong> (combining GNSS with INS, terrestrial beacons, and visual navigation) and <strong>mesh networking</strong> for command-and-control link redundancy. However, these approaches share a common limitation: they treat the <strong>communication signal</strong> as a transparent carrier of information, rather than as a structure that can itself be hardened against interference. The signal encoding — typically QPSK or QAM with standard DSSS — remains vulnerable to jamming because its constellation geometry is low-dimensional and commutative.</p>
+
+<p>This proposal addresses that gap by introducing a <strong>higher-order algebraic encoding layer</strong> that makes the signal itself structurally resistant to jamming, while the neuro-symbolic runtime above it ensures that every communication decision is traceable, gated, and auditable.</p>
+
+<!-- ==================== SECTION 3 ==================== -->
+<h1 id="sec3">3. The Mycelia Platform: Certifiable Neuro-Symbolic Runtime</h1>
+
+<h2 id="sec3-1">3.1 Architecture Overview</h2>
+
+<p>Mycelia is a production platform for ontology-constrained AI agency. Its core principle is that <strong>the graph decides what is legal; the model only navigates</strong>. Workflows are deterministic skeletons induced from operational traces, frozen as navigable graphs. The LLM selects among pre-validated transitions; it never invents an action. The certification target shifts from a stochastic model to deterministic artefacts: an ontology, a rule base, and a set of gates — objects aviation certification thinking already knows how to handle.</p>
+
+<p>The platform comprises four load-bearing architectural pieces<a href="#ref-deck" class="cite">[6]</a>:</p>
+
+<table>
+<caption data-label="Table 3">Mycelia architecture — four load-bearing pieces</caption>
+<thead>
+<tr><th>Piece</th><th>Function</th><th>ATM Relevance</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Ontology-constrained agency</strong></td><td>Workflow graphs induced from traces; LLM navigates legal transitions only</td><td>Letters of agreement, sector procedures as navigable graphs</td></tr>
+<tr><td><strong>Symbolic reasoning (Crepe)</strong></td><td>OWL2-RL Datalog forward-chaining; per-rule provenance</td><td>Separation minima, airspace constraints as inference rules</td></tr>
+<tr><td><strong>Three egress gates</strong></td><td>Structural validation; EVT content anomaly; wavelet operational anomaly</td><td>Controller authorises AI proposals at boundary</td></tr>
+<tr><td><strong>Provenance</strong></td><td>Named graphs; append-only audit; no silent erosion</td><td>Incident investigation, just culture, compliance queries</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec3-2">3.2 Spatial Grasp Technology for Decentralised Swarms</h2>
+
+<p>The Mycelia platform includes a <strong>Spatial Grasp Technology (SGT)</strong> module that implements Sapaty's mosaic-warfare doctrine for decentralised coordination. When the centralised uplink degrades — the DIL scenario that GNSS jamming creates — surviving assets self-organise with no orchestrator. The SGT module provides pure, deterministic functions that operate directly on the swarm state, making the system decentralisable by construction:</p>
+
+<table>
+<caption data-label="Table 4">SGT primitives and their U-space mapping</caption>
+<thead>
+<tr><th>SGT Primitive</th><th>Function</th><th>U-Space Instantiation</th></tr>
+</thead>
+<tbody>
+<tr><td><code>proximity_graph()</code></td><td>Build symmetric adjacency from comms range</td><td>UAV-to-UAV link topology in mesh</td></tr>
+<tr><td><code>elect_central_unit()</code></td><td>Deterministic leader election by fleet centroid</td><td>Local coordinator when ground link lost</td></tr>
+<tr><td><code>build_infrastructure()</code></td><td>BFS spanning tree of directed C2 links</td><td>Runtime control backbone with depth bounds</td></tr>
+<tr><td><code>group_neighbors()</code></td><td>Connected components above minimum size</td><td>Clustering for coordinated manoeuvres</td></tr>
+<tr><td><code>surround_danger()</code></td><td>Geometric encirclement with escape corridor detection</td><td>Containment geometry for non-cooperative drones</td></tr>
+</tbody>
+</table>
+
+<p>These functions are <strong>pure and decentralisable</strong> — each depends only on local neighbour state, so any node reproduces the same result. This determinism is critical for certification: the swarm topology is not learned; it is computed from verifiable geometric rules.</p>
+
+<h2 id="sec3-3">3.3 Three Egress Gates: Structural, EVT, and Operational</h2>
+
+<p>Every outbound action that an AI proposes — a message, a task, an engagement — is held at three verifiable gates before it touches reality<a href="#ref-deck" class="cite">[6]</a>:</p>
+
+<p><strong>Gate 1 — Structural Validation</strong> checks schema conformance, grounding metadata, and tenant scope. In the U-space context, this verifies that a C2 message conforms to the expected protocol schema, originates from a registered UAV within the correct operational volume, and carries valid authentication tokens.</p>
+
+<p><strong>Gate 2 — Content Anomaly Detection</strong> applies Extreme Value Theory (EVT) statistics over message distributions. The sentinel computes the Pareto tail index <span class="math">&#x03BE;</span> for each message stream; values above configured thresholds flag the message for human review. For U-space C2 links, this detects anomalous command patterns that may indicate spoofing or compromised nodes.</p>
+
+<p><strong>Gate 3 — Operational Anomaly Detection</strong> applies wavelet-based drift detection on flow behaviour. This gate monitors the temporal dynamics of the communication mesh — link latency patterns, topology change rates, throughput anomalies — and surfaces operational drift that may indicate jamming or network degradation.</p>
+
+<p>Flagged actions queue for human review with full context; approve/reject decisions flow back with an append-only audit trail. The operator does not supervise every inference — they authorise at the boundary. This is the human-AI teaming shape a controller working position already implies.</p>
+
+<!-- ==================== SECTION 4 ==================== -->
+<h1 id="sec4">4. The Sedenion Layer: 16D Algebraic Signal Encoding</h1>
+
+<h2 id="sec4-1">4.1 From Octonion Space-Time Codes to Sedenion Constellations</h2>
+
+<p>Research in space-time coding has established that non-associative algebraic structures can produce signal constellations with superior diversity products. Srivastava et al. demonstrated that <strong>octonion constellations</strong> increase the diversity product and thereby minimise the probability of error in multiple-antenna wireless communication<a href="#ref-17" class="cite">[3]</a>. The octonion algebra — 8-dimensional, non-commutative, non-associative, but a division algebra (no zero divisors) — provides a natural framework for unitary space-time modulation.</p>
+
+<p>The <strong>sedenion</strong> is the next algebra in the Cayley-Dickson construction: 16-dimensional, non-commutative, non-associative, <strong>not a division algebra</strong> (it has zero divisors), but <strong>power-associative</strong>. These properties create a distinctive signal-encoding geometry:</p>
+
+<table>
+<caption data-label="Table 5">Algebraic properties of signal-encoding structures</caption>
+<thead>
+<tr><th>Property</th><th>Complex (QPSK)</th><th>Quaternion</th><th>Octonion</th><th>Sedenion</th></tr>
+</thead>
+<tbody>
+<tr><td>Dimension</td><td>2</td><td>4</td><td>8</td><td>16</td></tr>
+<tr><td>Commutative</td><td>Yes</td><td>No</td><td>No</td><td>No</td></tr>
+<tr><td>Associative</td><td>Yes</td><td>No</td><td>No</td><td>No</td></tr>
+<tr><td>Division algebra</td><td>Yes</td><td>Yes</td><td>Yes</td><td><strong>No</strong> (zero divisors)</td></tr>
+<tr><td>Power-associative</td><td>Yes</td><td>Yes</td><td>Yes</td><td><strong>Yes</strong></td></tr>
+<tr><td>Parameter reuse factor</td><td>1x</td><td>4x</td><td>8x</td><td><strong>16x</strong></td></tr>
+<tr><td>Space-time coding application</td><td>Standard</td><td>STBC</td><td>Proven<a href="#ref-17" class="cite">[3]</a></td><td><strong>Novel (this proposal)</strong></td></tr>
+</tbody>
+</table>
+
+<p>The sedenion's zero divisors — elements <span class="math">Z &#x2260; 0</span> such that <span class="math">Z &#x00B7; W = 0</span> for some <span class="math">W &#x2260; 0</span> — are not a bug but a <strong>detectable feature</strong>. The set of zero divisors of unit sedenions is topologically equivalent to the exceptional Lie group <span class="math">G&#x2082;</span>. By monitoring the distance of a signal point to the zero-divisor manifold, we obtain a structural integrity metric that is invisible to conventional signal processing.</p>
+
+<figure id="fig-1">
+<img src="constellation_comparison.png" alt="Signal constellation comparison">
+<figcaption data-label="Figure 1">Signal constellation evolution: conventional QPSK (vulnerable), Signal Space Diversity (+2-3 dB), and Sedenion 16D encoding with ZDA safe zone</figcaption>
+</figure>
+
+<h2 id="sec4-2">4.2 L_a and R_a as Signal Operators</h2>
+
+<p>The sedenion implementation provides left and right multiplication matrices <span class="math">L<sub>a</sub></span> and <span class="math">R<sub>a</sub></span> that define the algebra's action on the 16-dimensional signal space. For a sedenion <span class="math">a</span>, the left multiplication operator <span class="math">L<sub>a</sub></span> and right multiplication operator <span class="math">R<sub>a</sub></span> satisfy <span class="math">L<sub>a</sub> &#x00B7; b = a &#x00B7; b</span> and <span class="math">R<sub>a</sub> &#x00B7; b = b &#x00B7; a</span>. These operators have distinctive properties that make them valuable for signal processing:</p>
+
+<ul>
+<li><strong>Non-commutativity encodes directionality</strong>: <span class="math">L<sub>a</sub> &#x00B7; b &#x2260; R<sub>a</sub> &#x00B7; b</span> means the signal transformation depends on whether the operator acts from the left or the right. This provides a natural mechanism for <strong>directional channel encoding</strong> in mesh networks, where the encoding of a message depends on its direction of propagation through the topology.</li>
+<li><strong>Condition-number diagnostics</strong>: Near zero divisors, <span class="math">L<sub>a</sub></span> and <span class="math">R<sub>a</sub></span> become singular. The condition number <span class="math">&#x03BA;(L<sub>a</sub>)</span> provides a real-time metric for signal-space integrity — a sudden spike indicates that the channel is approaching an algebraic singularity, which may correspond to a jamming event or deep fade.</li>
+<li><strong>Parameter efficiency</strong>: Each sedenion weight component is reused 16 times via the multiplication table, yielding a <strong>16x parameter reduction</strong> compared to a dense real matrix of the same representational capacity. For bandwidth-constrained UAV mesh networks, this directly translates to lower computational overhead at the edge.</li>
+</ul>
+
+<p>The current Rust implementation provides these operators as zero-cost abstractions with full test coverage for algebraic correctness: <span class="math">L<sub>a</sub> &#x00B7; b = a &#x00B7; b</span>, <span class="math">R<sub>a</sub> &#x00B7; b = b &#x00B7; a</span>, <span class="math">L<sub>a</sub><sup>T</sup> = L<sub>&#x0101;</sub></span>, and the non-associativity guard <span class="math">L<sub>ab</sub> &#x2260; L<sub>a</sub>L<sub>b</sub></span><a href="#ref-sedenion" class="cite">[7]</a>.</p>
+
+<h2 id="sec4-3">4.3 Zero-Divisor-Aware Integrity Checking</h2>
+
+<p>The <strong>Zero-Divisor-Aware (ZDA)</strong> regularisation is the sedenion layer's unique contribution to signal integrity. For a sedenion <span class="math">Z = (A, B)</span> where <span class="math">A, B &#x2208; &#x1D544;</span> (octonions), <span class="math">Z</span> is a zero divisor if and only if <span class="math">||A|| = ||B||</span> and <span class="math">A &#x00B7; B = 0</span>. The ZDA score measures the distance from this condition:</p>
+
+<div class="math-display">
+score(Z) = &radic;((||A||&sup2; - ||B||&sup2;)&sup2; + (2A &#x00B7; B)&sup2;) / (||A||&sup2; + ||B||&sup2;)
+</div>
+
+<p>The auto-ZDA barrier applies a repulsive <span class="math">-log(score)</span> loss plus a canonical norm floor motivated by the <span class="math">&#x1D4A9;(0, I)</span> target. During training, the ZDA gradient is automatically balanced against the base objective gradient — no raw <span class="math">&#x03BB;<sub>zda</sub></span> sweep is required<a href="#ref-sedenion" class="cite">[7]</a>.</p>
+
+<p>In the signal-processing context, the ZDA score provides a <strong>structural anomaly detector</strong> that operates below the bit layer. A corrupted signal — whether from jamming, fading, or spoofing — will perturb the algebraic relationship between the octonion components <span class="math">A</span> and <span class="math">B</span>. The ZDA score quantifies that perturbation, providing a detection mechanism that is orthogonal to conventional SNR-based metrics.</p>
+
+<table>
+<caption data-label="Table 6">ZDA as multi-layer integrity checker</caption>
+<thead>
+<tr><th>Layer</th><th>Conventional Check</th><th>ZDA Check</th><th>Advantage</th></tr>
+</thead>
+<tbody>
+<tr><td>Physical</td><td>SNR threshold</td><td>Condition number <span class="math">&#x03BA;(L<sub>a</sub>)</span></td><td>Detects algebraic singularity before bit errors</td></tr>
+<tr><td>Modulation</td><td>Constellation distance</td><td>Zero-divisor distance score</td><td>Detects structured interference (spoofing)</td></tr>
+<tr><td>Network</td><td>Packet CRC</td><td>Subalgebra sketch mismatch</td><td>Detects multi-dimensional corruption</td></tr>
+</tbody>
+</table>
+
+<!-- ==================== SECTION 5 ==================== -->
+<h1 id="sec5">5. Integration: Mycelia + Sedenion for Anti-Jamming CNS</h1>
+
+<h2 id="sec5-1">5.1 Architecture</h2>
+
+<p>The integrated architecture layers the sedenion signal-encoding plane beneath the Mycelia control plane, creating a full-stack CNS resilience system. Figure 2 illustrates the four-tier architecture.</p>
+
+<figure id="fig-2">
+<img src="mycelia_sedenion_architecture.png" alt="System architecture">
+<figcaption data-label="Figure 2">Mycelia + Sedenion CNS resilience architecture — four tiers from threat to certifiable output</figcaption>
+</figure>
+
+<p>The architecture operates as follows:</p>
+
+<p><strong>Tier 1 — Threat Layer</strong>: GNSS jammers, spoofers, and electronic warfare attacks create the contested electromagnetic environment. These are external inputs, not system components; the architecture is designed to operate despite their presence.</p>
+
+<p><strong>Tier 2 — UAV Swarm Layer</strong>: The Spatial Grasp Topology maintains a dynamic mesh of UAVs organised into cluster heads (CH) and cluster members (CM). The <code>proximity_graph()</code> function builds symmetric adjacency from line-of-sight comms range; <code>elect_central_unit()</code> provides deterministic leader election when the ground link degrades. This tier is implemented in the <code>sgt_swarm</code> module, tested with 14 operational invariants including symmetric topology, deterministic convergence, and escape-corridor honesty<a href="#ref-sgt" class="cite">[8]</a>.</p>
+
+<p><strong>Tier 3 — Sedenion Encoding Layer</strong>: Every inter-UAV communication passes through the 16D algebraic encoding pipeline. The signal constellation is mapped into sedenion space; <span class="math">L<sub>a</sub></span>/<span class="math">R<sub>a</sub></span> operators encode/decode based on link direction; auto-ZDA verifies structural integrity; and subalgebra sketches provide multi-scale projections for cross-checking.</p>
+
+<p><strong>Tier 4 — Mycelia Control Layer</strong>: The neuro-symbolic runtime provides the governance framework. Crepe applies doctrinal constraints (e.g., separation minima) before any swarm action is approved. The three egress gates verify structural, statistical, and operational integrity. Provenance is maintained in named graphs per tenant. The cartridge boundary ensures domain isolation — the SISFRON cartridge for military operations, the S1000D cartridge for maintenance, and a future ATM cartridge for U-space.</p>
+
+<h2 id="sec5-2">5.2 The Anti-Jamming Mechanism</h2>
+
+<p>The anti-jamming property of the integrated system arises from the interplay of three mechanisms:</p>
+
+<p><strong>Mechanism 1: Non-commutative directional encoding.</strong> Because <span class="math">L<sub>a</sub> &#x00B7; b &#x2260; R<sub>a</sub> &#x00B7; b</span>, the signal encoding depends on the direction of propagation. A jammer that captures and replays a signal cannot simply re-inject it into the mesh — the replayed signal will have the wrong algebraic orientation relative to the receiving node's decoding operator. This provides <strong>implicit replay protection</strong> without requiring explicit sequence numbers or timestamps.</p>
+
+<p><strong>Mechanism 2: Multi-dimensional spreading.</strong> The 16D constellation distributes signal energy across 16 dimensions, of which only a subset is captured by any single 2D projection. A jammer must simultaneously interfere with all 16 dimensions to suppress the signal, requiring significantly higher power or prior knowledge of the encoding basis. Published research on Signal Space Diversity (SSD) shows that even 2D rotation provides 2-3 dB gain against jamming; the 16D extension amplifies this effect<a href="#ref-24" class="cite">[9]</a>.</p>
+
+<p><strong>Mechanism 3: Zero-divisor anomaly detection.</strong> Jamming and spoofing both perturb the algebraic structure of the received signal. The ZDA score detects this perturbation at the algebraic level, before bit-level errors accumulate. When combined with Mycelia's EVT sentinel (Gate 2), this creates a <strong>two-tier anomaly detection system</strong>: ZDA catches structural corruption at the signal layer; EVT catches statistical anomalies at the message layer.</p>
+
+<div class="insight">
+<div class="insight-title">Why This Is Not Just "Better Crypto"</div>
+<p>Cryptography protects the <em>content</em> of a message; it does not protect the <em>signal</em> that carries it. A jammer does not need to decrypt a message to deny service — they only need to raise the noise floor above the signal. The sedenion layer protects the signal itself by making the constellation geometry structurally resistant to noise injection, while the non-commutativity makes replay attacks algebraically detectable. This is complementary to, not a replacement for, encryption.</p>
+</div>
+
+<h2 id="sec5-3">5.3 Parameter Efficiency at the Edge</h2>
+
+<p>UAV mesh networks are constrained by Size, Weight, and Power (SWaP). The sedenion layer's parameter efficiency directly addresses this constraint:</p>
+
+<table>
+<caption data-label="Table 7">Parameter efficiency comparison for a 16-dimensional signal encoder</caption>
+<thead>
+<tr><th>Encoder Type</th><th>Parameters</th><th>Relative Size</th><th>Edge Suitability</th></tr>
+</thead>
+<tbody>
+<tr><td>Dense real matrix (16x16)</td><td>256 weights + 16 bias = 272</td><td>1.0x (baseline)</td><td>Heavy for swarm nodes</td></tr>
+<tr><td>Sedenion linear layer</td><td>16 sedenion weights + bias = 272 / 16 = 17 effective</td><td><strong>0.063x</strong></td><td>Lightweight; fits edge constraints</td></tr>
+</tbody>
+</table>
+
+<p>The 16x parameter reduction means that a sedenion-encoded mesh node can process signals with the same representational capacity as a dense encoder using only 6% of the parameters. On resource-constrained UAV platforms, this translates to lower power consumption, smaller firmware footprint, and faster inference — all critical for extended operations in denied environments.</p>
+
+<!-- ==================== SECTION 6 ==================== -->
+<h1 id="sec6">6. Safety Case and Certifiability</h1>
+
+<p>The central challenge in certifying AI for aviation is that stochastic neural networks cannot be exhaustively enumerated, so classical assurance cases do not close. Mycelia's approach — "certify the structure, not the model" — addresses this by shifting the certification target to deterministic artefacts. The sedenion extension applies the same philosophy to the signal layer.</p>
+
+<table>
+<caption data-label="Table 8">Certification mapping: what is certified and how</caption>
+<thead>
+<tr><th>Component</th><th>Certification Target</th><th>Evidence Type</th><th>Aviation Parallel</th></tr>
+</thead>
+<tbody>
+<tr><td>Sedenion algebra</td><td>Correctness of L<sub>a</sub>, R<sub>a</sub>, multiplication</td><td>Unit tests; formal property checks</td><td>RTCA DO-178C unit verification</td></tr>
+<tr><td>ZDA barrier</td><td>Repulsive gradient; scale invariance</td><td>Gradient checks; boundary conditions</td><td>MC/DC coverage of safety monitor</td></tr>
+<tr><td>SGT topology</td><td>Deterministic output from input</td><td>14 operational invariant tests</td><td>Requirements-based testing</td></tr>
+<tr><td>Crepe reasoner</td><td>Soundness of inference</td><td>Rule traceability; provenance</td><td>DO-330 tool qualification</td></tr>
+<tr><td>Egress gates</td><td>Fail-closed on anomaly</td><td>Fault injection; mutation testing</td><td>Fail-safe architecture review</td></tr>
+<tr><td>Provenance</td><td>Immutable audit trail</td><td>Append-only log verification</td><td>ED-153/ED-154 compliance</td></tr>
+</tbody>
+</table>
+
+<p>The Rust implementation of the sedenion crate is pinned to Rust 1.96.0 with comprehensive test coverage: property tests for algebraic laws (<span class="math">L<sub>a</sub> &#x00B7; b = a &#x00B7; b</span>, <span class="math">R<sub>a</sub> &#x00B7; b = b &#x00B7; a</span>, power-associativity), gradient tests for ZDA correctness, and benchmark tests for performance characterisation<a href="#ref-sedenion" class="cite">[7]</a>. The deterministic nature of the SGT functions — they are pure functions of the swarm state, with no randomness or learning — means they can be verified by inspection and testing, not by statistical validation.</p>
+
+<p>The fail-open / fail-closed design is explicit: observability paths (telemetry, audit logs) fail open so they never block operations; action paths (C2 commands, swarm manoeuvres) fail closed so nothing ungated escapes. This per-gate explicit choice is documented and tested — not defaulted.</p>
+
+<!-- ==================== SECTION 7 ==================== -->
+<h1 id="sec7">7. ATM Relevance and U-Space Integration</h1>
+
+<p>The proposed CNS resilience stack maps directly onto the U-space service framework and the broader ATM architecture:</p>
+
+<table>
+<caption data-label="Table 9">U-space service mapping for Mycelia + Sedenion</caption>
+<thead>
+<tr><th>U-Space Service</th><th>Mycelia Component</th><th>Sedenion Contribution</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>e-registration</strong></td><td>Ontology-based identity (IRI per UAV)</td><td>—</td></tr>
+<tr><td><strong>e-identification</strong></td><td>Provenance trail per flight</td><td>ZDA-verified signal origin</td></tr>
+<tr><td><strong>Geo-awareness</strong></td><td>Milvus GEOMETRY + geo-fast-core</td><td>—</td></tr>
+<tr><td><strong>Traffic information</strong></td><td>SSE streaming + CopMap visualisation</td><td>Integrity-checked telemetry</td></tr>
+<tr><td><strong>Flight authorisation</strong></td><td>Crepe ROE constraints + egress gates</td><td>—</td></tr>
+<tr><td><strong>Conformance monitoring</strong></td><td>DeviationDetector + EVT sentinel</td><td>ZDA structural anomaly flag</td></tr>
+<tr><td><strong>C2 link resilience</strong></td><td>SGT mesh self-organisation</td><td>16D anti-jamming encoding</td></tr>
+</tbody>
+</table>
+
+<p>The FLY AI 2026 event's category structure includes <strong>CNS, AIM, MET</strong> and <strong>Trustworthy AI (safety, regulation, certification, cyber)</strong>. This proposal bridges both categories: the sedenion layer is a CNS technology for signal resilience, while the Mycelia platform addresses trustworthy AI through its structural certification approach.</p>
+
+<p>The integration path into existing ATM systems is via the <strong>cartridge boundary</strong>. Just as Mycelia currently isolates SISFRON (military border surveillance) and S1000D (aerospace maintenance) behaviour in separate cartridges, an ATM cartridge would encapsulate U-space-specific ontologies (airspace classifications, separation minima, procedural rules), workflows (flight authorisation, conformance monitoring, contingency procedures), and egress policies. The core engine never learns ATM domain behaviour; it navigates the graph.</p>
+
+<!-- ==================== SECTION 8 ==================== -->
+<h1 id="sec8">8. Roadmap and FLY AI Demonstration</h1>
+
+<p>The FLY AI 2026 demonstration will showcase a <strong>fully offline, laptop-deployable</strong> system running the integrated Mycelia + Sedenion stack. The demonstration scenario simulates a U-space surveillance mission with 5 UAVs operating in a GNSS-contested environment:</p>
+
+<table>
+<caption data-label="Table 10">FLY AI 2026 demonstration scenario</caption>
+<thead>
+<tr><th>Phase</th><th>Action</th><th>What the Audience Sees</th></tr>
+</thead>
+<tbody>
+<tr><td>1. Setup</td><td>Load SISFRON cartridge; initialise 5-UAV swarm</td><td>Dashboard with live COP, UAV positions, mesh topology</td></tr>
+<tr><td>2. Normal ops</td><td>Swarm patrols sector; C2 via sedenion-encoded mesh</td><td>Signal constellation visualisation; ZDA score real-time</td></tr>
+<tr><td>3. Jamming event</td><td>Simulated GNSS jammer activated</td><td>ZDA spike detected; mesh re-routes via SGT; no C2 loss</td></tr>
+<tr><td>4. Spoofing attempt</td><td>Simulated spoofer injects false position</td><td>EVT sentinel flags anomaly; Crepe gates action; audit logged</td></tr>
+<tr><td>5. Recovery</td><td>Jammer deactivated; swarm resumes normal ops</td><td>Full audit trail replay; provenance graph visualisation</td></tr>
+</tbody>
+</table>
+
+<p>The demonstration runs entirely on the laptop brought to the room — no cloud calls, no venue network dependency. This air-gap capability is not a demo feature; it is the production deployment mode for the SISFRON cartridge, validated in DIL conditions.</p>
+
+<p>Beyond FLY AI, the research roadmap extends the sedenion layer in three directions:</p>
+
+<table>
+<caption data-label="Table 11">Post-FLY AI research roadmap</caption>
+<thead>
+<tr><th>Phase</th><th>Objective</th><th>Deliverable</th><th>Timeline</th></tr>
+</thead>
+<tbody>
+<tr><td>Phase 1 (Q4 2026)</td><td>Characterise BER performance under jamming</td><td>Simulation benchmark vs. conventional DSSS</td><td>3 months</td></tr>
+<tr><td>Phase 2 (Q1 2027)</td><td>Integrate with physical-layer radio (SDR)</td><td>Over-the-air test on software-defined radio</td><td>6 months</td></tr>
+<tr><td>Phase 3 (Q2 2027)</td><td>Formal safety case for certification</td><td>Assurance argument structured to ED-153</td><td>6 months</td></tr>
+</tbody>
+</table>
+
+<!-- ==================== SECTION 8.5 ==================== -->
+<h1 id="sec8-5">8.5 Interactive UAV Simulator</h1>
+
+<p>This proposal is accompanied by a <strong>fully offline, browser-based UAV simulator</strong> that demonstrates the operational effects of GNSS jamming and spoofing in a controlled, interactive environment. The simulator is included in this package under <code>simulator/</code> and can be launched by opening <code>simulator/index.html</code> in any modern browser — no installation, cloud connection, or build step is required.</p>
+
+<p>The simulator implements three modes that map directly to the demonstration scenario in Section 8:</p>
+
+<table>
+<caption data-label="Table 12">Interactive simulator modes</caption>
+<thead>
+<tr><th>Mode</th><th>Purpose</th><th>What the User Experiences</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Demo</strong></td><td>Passive replay of recorded Arrow IPC telemetry</td><td>A recorded UAV flight over the airfield; camera presets, trajectory trail, and telemetry HUD</td></tr>
+<tr><td><strong>Fly</strong></td><td>Manual quadcopter flight</td><td>Keyboard or gamepad control (WASD/arrow keys or Xbox/PlayStation controller); arcade-stable physics with rate-command attitude hold</td></tr>
+<tr><td><strong>Fly + Jam</strong></td><td>Manual flight under simulated GPS interference</td><td>GNSS fix is corrupted or lost; HUD telemetry drifts; RF noise overlay visualises the jamming event; the true drone state remains visible so the pilot can feel the divergence</td></tr>
+</tbody>
+</table>
+
+<p>The simulator is a <strong>teaching and briefing surface</strong> for the same architectural concepts described in this proposal. The separation between the drone's true state and its reported GNSS state mirrors the real-world distinction between physical reality and corrupted navigation data.</p>
+
+<p>Controls are designed for both presentation and hands-on exploration. A keyboard mapping supports immediate use in briefing rooms, while standard-mapped Xbox and PlayStation gamepads enable a more natural flight-stick experience. A help overlay (<code>H</code>) documents the controls and is shown automatically on first launch.</p>
+
+<p><strong>Launch the simulator:</strong> open <a href="simulator/index.html">simulator/index.html</a> in a browser after extracting this package.</p>
+
+<!-- ==================== SECTION 9 ==================== -->
+<h1 id="sec9">9. Conclusion</h1>
+
+<p>GNSS interference is no longer a theoretical risk — it is an operational reality that EUROCONTROL and EASA have identified as a "significant and evolving challenge" requiring immediate, coordinated action. U-space operations, which depend on GNSS for navigation and C2, are particularly exposed. Current mitigation strategies focus on multi-layer PNT and mesh networking redundancy, but they leave the <strong>signal encoding layer</strong> unhardened.</p>
+
+<p>This proposal presents a dual-layer solution: the <strong>Mycelia platform</strong> provides a certifiable neuro-symbolic runtime for decentralised swarm coordination, with deterministic topology computation, doctrinal gating, and end-to-end provenance; the <strong>Sedenion layer</strong> provides a novel 16D algebraic signal encoding that is structurally resistant to jamming, with non-commutative directional encoding, multi-dimensional spreading, and zero-divisor anomaly detection.</p>
+
+<p>The combination addresses the CNS resilience gap at two levels: the sedenion layer hardens the signal against interference, while the Mycelia runtime ensures that every swarm decision is traceable, gated, and auditable. Both layers shift the certification target from stochastic AI models to deterministic algebraic structures — structures that aviation safety thinking already knows how to handle.</p>
+
+<p>The system is production-ready for the control plane (Mycelia has been operational since 2025) and research-validated for the signal plane (the sedenion crate has reproducible test results and benchmark data). The FLY AI 2026 demonstration will show both layers operating together in a realistic U-space scenario — fully offline, fully traceable, and fully certifiable.</p>
+
+<div class="insight">
+<div class="insight-title">Closing Argument</div>
+<p>EUROCONTROL's FLY AI report asks how AI can deliver tangible value in ATM. The answer proposed here is that AI's value is not in replacing human judgment but in creating <strong>verifiable structures</strong> that constrain agency within bounds that humans can audit. The sedenion algebra is one such structure — a 16-dimensional signal manifold with verifiable geometric properties. Mycelia is the runtime that certifies navigation across that manifold. Together, they make U-space CNS resilient by design.</p>
+</div>
+
+<!-- ==================== REFERENCES ==================== -->
+<h1 id="refs">References</h1>
+<ol class="references">
+<li id="ref-8">EASA and EUROCONTROL. (2026, March 27). <i>EASA and Eurocontrol Publish GNSS Joint Action Plan</i>. AIN Online. Retrieved from https://www.ainonline.com/aviation-news/aerospace/2026-03-27/easa-and-eurocontrol-publish-gnss-joint-action-plan</li>
+<li id="ref-9">EASA & EUROCONTROL. (2026). <i>European Aviation Action Plan for Ensuring Safe Operations during GNSS Interferences</i> (Draft under public consultation). Retrieved from https://www.eurocontrol.int/archive_download/all/node/15874</li>
+<li id="ref-17">Srivastava, G., Gupta, R., Kumar, R., & Le, D.-N. (2019). Space-Time Code Design Using Quaternions, Octonions and Other Non-Associative Structures. <i>International Journal of Electrical and Computer Engineering Systems</i>, 10(2), 91-100. DOI: 10.32985/ijeces.10.2.3</li>
+<li id="ref-16">IATA. (2025). <i>Cyber in Aviation</i> (Presentation). Retrieved from https://www.iata.org/contentassets/e28d00ea3ba54be5a9ec5b34347d1c22/20250924_1450_manapatrick_approved.pdf</li>
+<li id="ref-11">GPS World. (2026, March 30). How to defeat harmful GPS/GNSS interference: A roadmap for action. Retrieved from https://www.gpsworld.com/how-to-defeat-harmful-gps-gnss-interference-a-roadmap-for-action/</li>
+<li id="ref-deck">Agourakis, D. C. (2026). <i>Certify the Structure, Not the Model</i> [FLY AI 2026 Presentation Deck]. Mycelia / JAI-Embria.</li>
+<li id="ref-sedenion">Sedenion Project. (2026). <i>Sedenion: A Rust implementation of the 16-dimensional Cayley-Dickson algebra</i> [Source code and documentation]. GitHub repository.</li>
+<li id="ref-sgt">Mycelia SISFRON Cartridge. (2026). <i>Mosaic Warfare & Spatial Grasp Technology — SISFRON Adoption</i> [Technical documentation]. MOSAIC_WARFARE_SGT.md.</li>
+<li id="ref-24">Hal research report. <i>Direct-Sequence Spread Spectrum with Signal Space Diversity</i>. Retrieved from https://hal.science/hal-03426905v1/document</li>
+<li id="ref-6">MDPI Drones. (2026). Energy-Harvesting-Assisted UAV Swarm Anti-Jamming Communication Based on Multi-Agent Reinforcement Learning. <i>Drones</i>, 10(4), 294. DOI: 10.3390/drones10040294</li>
+<li id="ref-5">Unmanned Systems Technology. (2026, April 7). Drone Swarm Technology. Retrieved from https://www.unmannedsystemstechnology.com/expo/drone-swarm-technology/</li>
+<li id="ref-22">Georgia Tech Research Institute. (2022, August 22). PNT Chain Technique Could Help UAVs Navigate in a GPS-Denied World. <i>Research News</i>. Retrieved from https://research.gatech.edu/pnt-chain-technique-could-help-uavs-navigate-gps-denied-world</li>
+</ol>
+
+</body>
+</html>

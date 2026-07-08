@@ -254,10 +254,10 @@ input {
   bottom: 18px;
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: auto minmax(120px, 150px) minmax(220px, 300px) minmax(250px, auto) auto;
+  grid-template-columns: auto minmax(120px, 150px) minmax(220px, 300px) minmax(250px, auto) auto auto;
   align-items: center;
   gap: 12px;
-  width: min(calc(100vw - 28px), 1040px);
+  width: min(calc(100vw - 28px), 1140px);
   padding: 9px 10px;
   border-radius: 8px;
   background: var(--panel-strong);
@@ -322,7 +322,7 @@ input {
 
 .camera-presets {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -349,8 +349,8 @@ input {
 }
 
 #app.presentation .controls {
-  width: min(calc(100vw - 28px), 980px);
-  grid-template-columns: auto minmax(120px, 150px) minmax(220px, 300px) minmax(250px, auto) auto;
+  width: min(calc(100vw - 28px), 1080px);
+  grid-template-columns: auto minmax(120px, 150px) minmax(220px, 300px) minmax(250px, auto) auto auto;
 }
 
 .timeline-glow {
@@ -534,6 +534,316 @@ input {
   }
 }
 
+/* Severity colors used by GPS, controller and mode indicators. */
+.severity-ok,
+[data-severity="ok"] {
+  color: var(--mint);
+}
+
+.severity-warn,
+[data-severity="warn"] {
+  color: #f0c674;
+}
+
+.severity-danger,
+[data-severity="danger"] {
+  color: var(--danger);
+}
+
+/* Mode selector — fixed strip below the topbar. */
+.mode-selector {
+  position: fixed;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  backdrop-filter: blur(16px) saturate(1.12);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  z-index: 4;
+}
+
+.mode-label {
+  padding: 0 4px;
+  color: var(--dim);
+  font-size: 10px;
+  line-height: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.mode-buttons button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(116, 230, 206, 0.16);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(116, 230, 206, 0.045);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mode-buttons button:hover {
+  filter: brightness(1.06);
+}
+
+.mode-buttons button:active {
+  transform: translateY(1px);
+}
+
+.mode-buttons button[aria-pressed="true"] {
+  border-color: rgba(116, 230, 206, 0.55);
+  color: var(--text);
+  background: rgba(116, 230, 206, 0.15);
+  box-shadow: inset 0 0 18px rgba(116, 230, 206, 0.08);
+}
+
+/* Mode banner — colored status strip below the mode selector. */
+.mode-banner {
+  position: fixed;
+  left: 50%;
+  top: 60px;
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text);
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 4;
+}
+
+.mode-banner[data-mode] {
+  opacity: 1;
+}
+
+.mode-banner span {
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mode-banner[data-mode="demo"] {
+  border-color: rgba(215, 173, 85, 0.45);
+  background: rgba(215, 173, 85, 0.12);
+}
+
+.mode-banner[data-mode="demo"] span {
+  color: var(--gold);
+}
+
+.mode-banner[data-mode="manual"] {
+  border-color: rgba(116, 230, 206, 0.45);
+  background: rgba(116, 230, 206, 0.12);
+}
+
+.mode-banner[data-mode="manual"] span {
+  color: var(--mint);
+}
+
+.mode-banner[data-mode="manual-jammed"] {
+  border-color: rgba(230, 109, 85, 0.55);
+  background: rgba(230, 109, 85, 0.14);
+  animation: banner-pulse 1.6s ease-in-out infinite;
+}
+
+.mode-banner[data-mode="manual-jammed"] span {
+  color: var(--danger);
+}
+
+@keyframes banner-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(230, 109, 85, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(230, 109, 85, 0);
+  }
+}
+
+/* GPS HUD — small readout strip aligned with the right-side panels. */
+.gps-hud {
+  position: fixed;
+  right: 18px;
+  top: 156px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(64px, 1fr));
+  gap: 1px;
+  width: min(320px, calc(100vw - 36px));
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  backdrop-filter: blur(16px) saturate(1.12);
+  z-index: 4;
+}
+
+.gps-hud span {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  background: rgba(116, 230, 206, 0.035);
+  text-align: center;
+}
+
+.gps-hud b {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 17px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+
+.gps-hud small {
+  color: var(--dim);
+  font-size: 9px;
+  line-height: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gps-hud .severity-ok b,
+.gps-hud .severity-warn b,
+.gps-hud .severity-danger b {
+  color: inherit;
+}
+
+/* Controller status readout inside the existing readout panel. */
+.controller-status {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.controller-status.connected {
+  color: var(--mint);
+}
+
+.controller-status.disconnected {
+  color: var(--danger);
+}
+
+/* Help overlay and panel. */
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 21, 19, 0.78);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 12;
+}
+
+.help-overlay[aria-hidden="false"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.help-panel {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 22px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.help-panel h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  line-height: 24px;
+  color: var(--text);
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.help-panel section h3 {
+  margin: 0 0 8px;
+  color: var(--gold);
+  font-size: 11px;
+  line-height: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.help-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.help-panel li {
+  margin-bottom: 6px;
+}
+
+.help-panel li b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.help-close,
+.help-toggle {
+  border: 1px solid rgba(116, 230, 206, 0.2);
+  border-radius: 6px;
+  color: var(--text);
+  background: rgba(116, 230, 206, 0.1);
+  cursor: pointer;
+}
+
+.help-close {
+  height: 34px;
+  padding: 0 18px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.help-toggle {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.help-close:hover,
+.help-toggle:hover {
+  filter: brightness(1.08);
+}
+
+.help-close:active,
+.help-toggle:active {
+  transform: translateY(1px);
+}
+
 @media (max-width: 760px) {
   .topbar {
     left: 10px;
@@ -552,6 +862,26 @@ input {
   .mission,
   .layers {
     display: none;
+  }
+
+  .mode-selector {
+    left: 10px;
+    right: 10px;
+    top: 10px;
+    transform: none;
+    justify-content: center;
+  }
+
+  .mode-banner {
+    top: 54px;
+    width: calc(100vw - 20px);
+    text-align: center;
+  }
+
+  .gps-hud {
+    right: 10px;
+    top: 92px;
+    width: min(280px, calc(100vw - 20px));
   }
 
   .controls {
@@ -576,7 +906,8 @@ input {
     grid-column: 1 / -1;
   }
 
-  .presentation-toggle {
+  .presentation-toggle,
+  .help-toggle {
     grid-column: 1 / -1;
   }
 
@@ -587,5 +918,9 @@ input {
   .readout,
   .drop {
     display: none;
+  }
+
+  .help-grid {
+    grid-template-columns: 1fr;
   }
 }

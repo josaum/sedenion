@@ -1,0 +1,128 @@
+/* GPS jamming / spoofing overlay and HUD severity styling ----------------- */
+
+#rf-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  display: grid;
+  place-items: start center;
+}
+
+#rf-overlay.active {
+  opacity: 1;
+}
+
+/* Low-resolution canvas scaled up to cover the viewport. */
+#rf-overlay canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  mix-blend-mode: overlay;
+}
+
+/* Warning banners --------------------------------------------------------- */
+
+.jamming-banner,
+.spoofing-banner {
+  position: relative;
+  margin-top: 96px;
+  padding: 10px 22px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 760;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(-12px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  pointer-events: none;
+  z-index: 11;
+}
+
+.jamming-banner {
+  color: #1a120e;
+  background: #e66d55;
+  box-shadow: 0 0 30px rgba(230, 109, 85, 0.55);
+}
+
+.spoofing-banner {
+  color: #1a120e;
+  background: #f2a93b;
+  box-shadow: 0 0 30px rgba(242, 169, 59, 0.55);
+}
+
+#rf-overlay.jamming .jamming-banner {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#rf-overlay.spoofing .spoofing-banner {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* HUD severity classes ---------------------------------------------------- */
+
+.gps-ok {
+  color: var(--mint, #74e6ce);
+  text-shadow: 0 0 12px rgba(116, 230, 206, 0.45);
+}
+
+.gps-jammed {
+  color: #e66d55;
+  text-shadow: 0 0 12px rgba(230, 109, 85, 0.55);
+}
+
+.gps-spoofed {
+  color: #f2a93b;
+  text-shadow: 0 0 12px rgba(242, 169, 59, 0.55);
+}
+
+/* Optional severity badge for use inside HUD rows. */
+.gps-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.gps-ok .gps-badge {
+  color: #0f1c19;
+  background: var(--mint, #74e6ce);
+}
+
+.gps-jammed .gps-badge {
+  color: #1a120e;
+  background: #e66d55;
+}
+
+.gps-spoofed .gps-badge {
+  color: #1a120e;
+  background: #f2a93b;
+}
+
+/* Reduced motion ---------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  #rf-overlay,
+  .jamming-banner,
+  .spoofing-banner {
+    transition: none;
+  }
+}

@@ -162,18 +162,33 @@ See [`nav-bakeoff/README.md`](nav-bakeoff/README.md),
 [`nav-bakeoff/PAPER.md`](nav-bakeoff/PAPER.md), and
 [`nav-bakeoff/OPERATOR_ALGEBRA.md`](nav-bakeoff/OPERATOR_ALGEBRA.md).
 
-### UAV Flight Viewer: `uav-viewer/`
+### UAV Flight Viewer / Simulator: `uav-viewer/`
 
 `uav-viewer` is a browser-based Three.js viewer for Arrow IPC flight exports from
 `nav-bakeoff`. It is not a new navigation result; it is an inspection and briefing
 surface for GPS-denied UAV trajectories, with pt-BR controls, orbit/top/command
 camera presets, trajectory/vector/range layers, and a daylight test-range scene.
 
+It has been extended into an interactive simulator with:
+
+- **Demo mode** — passive replay of recorded Arrow IPC telemetry.
+- **Manual flight mode** — fly the drone with keyboard or gamepad (Xbox / PlayStation).
+- **GPS jamming mode** — experience RF noise, HUD degradation, and reported-position drift while the true state remains visible.
+
 ![UAV Flight Viewer daylight scene](docs/assets/uav-viewer-daylight.jpg)
 
 ![UAV Flight Viewer presentation mode](docs/assets/uav-viewer-presentation.jpg)
 
 ![UAV Flight Viewer mobile layout](docs/assets/uav-viewer-mobile.jpg)
+
+### FLY AI 2026 Proposal: `fly-ai-2026/`
+
+`fly-ai-2026/` packages the FLY AI 2026 proposal *Resilient CNS for U-Space*,
+which frames the sedenion algebra and the Mycelia neuro-symbolic runtime as a
+dual-layer anti-jamming CNS stack for U-space UAV operations. The package
+includes the HTML/PDF proposal documents and a built, offline-capable copy of the
+UAV simulator under `simulator/`. Open `fly-ai-2026/simulator/index.html` in a
+browser to run the demo without any build step or network connection.
 
 ## Reproduce
 
