@@ -81,6 +81,10 @@ let z3 = z.powu(3);  // 4.84 ns via binary exponentiation
 let score = z.zda_score();
 let (loss, grad) = z.zda_loss_and_grad();
 
+// Triangular-root support diagnostics
+let support = z.support_mask(1e-6);
+let class = sedenion::classify_triangular_support(support);
+
 // Zero-cost subalgebra sketches for SIGReg
 let oct = z.sketch_octonion();   // &[f32; 8]
 let quat = z.sketch_quaternion(); // &[f32; 4]
@@ -139,6 +143,33 @@ L_ZDA = -log(score) + max(0, -log(||Z|| / sqrt(16)))
 - **No raw λ sweep**: use `auto_zda_gradient_scale(...)` to match the ZDA gradient RMS to the current base-objective gradient, with an automatic boost only while embeddings are below the N(0,I) norm target.
 - **G₂ geometry**: The unit zero-divisor set is homeomorphic to the exceptional Lie group **G₂**. By controlling distance to this manifold, you embed exceptional symmetry into the latent space in a way no standard R^d or C^d space can.
 
+### Triangular-Root Support Masks
+
+The crate also exposes the DOI-package triangular-root classification as a fast
+`u16` support diagnostic:
+
+```rust
+use sedenion::{classify_triangular_support, geometric_triangular_root, TriangularSupport};
+
+let ghost_line = (1u16 << 1) | (1u16 << 10) | (1u16 << 11);
+
+assert_eq!(geometric_triangular_root(ghost_line), Some((1u16 << 1) | (1u16 << 10)));
+assert_eq!(
+    classify_triangular_support(ghost_line),
+    TriangularSupport::Ghost { root_mask: (1u16 << 1) | (1u16 << 10) },
+);
+```
+
+The classifier reproduces the finite geometry count from *The Sedenion Triangular
+Root*: `30` strong masks, `36` ghost masks, and `32701` nontriangulable masks
+among the nonzero imaginary supports. This is useful as a candidate filter for
+representation diagnostics or hardware routing experiments.
+
+Important caveat: `Ghost` is a support-level fact, not a coefficient-level
+annihilation guarantee. It means the coordinate span contains some zero divisor.
+Callers still need `zero_divisor_status`, multiplication/kernel checks, and any
+domain-specific physical validation before treating a vector as an actual null.
+
 ---
 
 ## The O(N) Squaring Trick
@@ -190,6 +221,8 @@ sedenion/
 | `Sedenion::zda_loss_and_grad` | ZDA barrier and component gradient | O(N) SIMD |
 | `zda_batch_loss_and_grad` | Mean ZDA loss/gradient for embeddings | O(batch × N) |
 | `auto_zda_gradient_scale` | Parameter-free auto-ZDA gradient balancing | O(1) |
+| `Sedenion::support_mask` | Threshold active basis components into a `u16` mask | O(N) |
+| `classify_triangular_support` | Strong/ghost/bad triangular-root support filter | O(1) over 15 bits |
 | `Sedenion::sketch_*` | Subalgebra projections | O(1) zero-cost |
 | `SedenionMatrix::matvec` | Linear transform | O(rows × cols × N²) |
 | `SedenionMatrix::matvec_backward` | Backprop gradients | O(rows × cols × N²) |

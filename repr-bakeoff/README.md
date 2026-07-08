@@ -66,6 +66,14 @@ Two datasets feed the same pipeline: a synthetic two-view task, and real **MNIST
 | Sedenion ZDA off | 272 | 87.4% | 9.44 | 0.4020 | 0.3025 | 0.0016 |
 | Sedenion ZDA auto | 272 | **92.8%** | 5.99 | 0.1672 | 0.4158 | 0.4300 |
 
+Support telemetry:
+
+| arm | strong% | ghost% | bad% | r1% | r2% | r3% | r4% | zda_S | zda_G | zda_B |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| Real baseline | 0.5% | 15.7% | 83.8% | 0.5% | 0.1% | 0.0% | 15.6% | 0.487 | 0.930 | 0.611 |
+| Sedenion ZDA off | 0.0% | 0.0% | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | n/a | n/a | 0.424 |
+| Sedenion ZDA auto | 0.1% | 2.3% | 97.6% | 0.0% | 0.0% | 0.1% | 2.3% | 0.975 | 0.931 | 0.918 |
+
 ### Real — MNIST (3 seeds, 1200 train / 1200 test, frozen 784→256 backbone, 300 epochs, chance = 10%)
 
 | arm | params | probe_acc | eff_rank | gaussian↓ | isotropy↓ | min_std |
@@ -74,10 +82,30 @@ Two datasets feed the same pipeline: a synthetic two-view task, and real **MNIST
 | Sedenion ZDA off | 272 | 10.3% | 14.94 | 0.4020 | 0.1066 | 0.0000 |
 | Sedenion ZDA auto | 272 | **41.0%** | 10.80 | 0.1905 | 0.2675 | 0.3213 |
 
+Support telemetry:
+
+| arm | strong% | ghost% | bad% | r1% | r2% | r3% | r4% | zda_S | zda_G | zda_B |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| Real baseline | 3.4% | 51.8% | 44.8% | 3.3% | 0.4% | 0.0% | 51.5% | 0.493 | 0.970 | 0.728 |
+| Sedenion ZDA off | 0.0% | 0.0% | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | n/a | n/a | 0.579 |
+| Sedenion ZDA auto | 0.3% | 0.1% | 99.6% | 0.0% | 0.1% | 0.2% | 0.1% | 0.877 | 0.899 | 0.628 |
+
 `probe_acc` linear-probe accuracy · `eff_rank` effective rank of embedding cov
 (16 = full) · `gaussian↓` held-out Epps-Pulley statistic against N(0,1) ·
 `isotropy↓` distance from isotropic cov after trace normalization · `min_std`
 smallest per-axis standard deviation.
+
+Current runs also print triangular-root support telemetry over held-out
+embeddings, using `|component| > 0.25` as the active-support threshold:
+
+- `strong%`, `ghost%`, `bad%`: rate of DOI-package support classes.
+- `r1%`..`r4%`: rooted-support rank mix among all held-out embeddings.
+- `zda_S`, `zda_G`, `zda_B`: mean continuous `zda_score` conditioned on support
+  class.
+
+Read this as diagnostic evidence only: a `ghost` support says the coordinate span
+contains some zero divisor, while `zda_score` says whether the actual coefficients
+are near the continuous zero-divisor cone.
 
 ## What the numbers say
 

@@ -104,6 +104,36 @@ SIGReg/invariance gradient, so there is no raw `λ_zda` sweep to tune.
 - **Information Bottleneck**: Zero divisors act as an algebraic "null space." By controlling the distance to the zero divisor manifold, we explicitly control the capacity of the latent channel.
 - **G₂ Geometry**: The zero divisor set of unit sedenions is homeomorphic to G₂. By regularizing against it, we are implicitly shaping the latent space to avoid the exceptional symmetry singularities, which could stabilize training.
 
+### 4.4 Triangular-Root Support Diagnostics
+
+The triangular-root DOI package adds a discrete layer above the continuous ZDA
+score. Threshold each embedding into a 16-bit support mask, ignore the scalar bit,
+and classify the active imaginary support:
+
+- **Strong**: projectively closed and zero-divisor-free at the support level.
+- **Ghost**: projectively closed, but its coordinate span contains some zero divisor.
+- **Bad**: not projectively closed under the Cayley-Dickson XOR support law.
+
+The verified split is:
+
+```
+32767 nonzero imaginary masks = 30 strong + 36 ghost + 32701 bad
+```
+
+This gives the representation approach a cheap topology probe:
+
+1. Use `Sedenion::support_mask(threshold)` to get the active basis support.
+2. Use `classify_triangular_support(mask)` to detect strong/ghost/bad cells.
+3. Treat ghost masks as candidate null-geometry events, not as proof that the
+   current coefficients annihilate anything.
+4. Confirm any actual annihilation with `zero_divisor_status`, multiplication,
+   or a left/right-kernel check.
+
+That separation is important. The mask classifier can tell us that a latent has
+entered a finite projective cell whose span includes a zero divisor; the continuous
+ZDA score tells us whether this particular vector is near the zero-divisor cone.
+Together they are a better diagnostic than either one alone.
+
 ## 5. Benefits Over Standard LeJEPA
 
 | Feature | Standard LeJEPA (R^d) | Sedenion-LeJEPA (S^k) |
@@ -125,7 +155,10 @@ SIGReg/invariance gradient, so there is no raw `λ_zda` sweep to tune.
 
 4. **Power-Associativity Enables Deep Predictors**: Unlike pathions (32D) or higher algebras, sedenions allow unambiguous polynomial and power-series predictors. You can stack sedenion layers or use recurrent sedenion dynamics without associativity ambiguity.
 
-5. **G₂ as a Built-in Symmetry Group**: The exceptional Lie group G₂, which is central to some string theory and geometric deep learning constructions, appears naturally in the sedenion zero-divisor geometry. This is a powerful, built-in structural bias that no other standard latent space possesses.
+5. **Discrete + Continuous Null Geometry**: The triangular-root support split gives
+   a finite diagnostic over active basis masks, while ZDA gives the continuous
+   distance to the coefficient-level zero-divisor cone. This makes the null-space
+   story testable instead of purely metaphorical.
 
 ## 7. Implementation Sketch (Pseudocode)
 

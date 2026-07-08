@@ -52,6 +52,8 @@ The `sedenion` crate provides the reusable deliverable:
 - Left/right multiplication matrices `L_a` and `R_a`.
 - Zero-cost subalgebra sketches for 4-D, 8-D, and 15-D projections.
 - Zero-divisor diagnostics.
+- Triangular-root support diagnostics: geometric roots, strong/ghost/bad mask
+  classification, and the verified `30 + 36 + 32701` support split.
 - The extracted auto-ZDA representation-learning API:
   `zda_score`, `zda_loss_and_grad`, `zda_batch_loss_and_grad`, and
   `auto_zda_gradient_scale`.
@@ -59,7 +61,10 @@ The `sedenion` crate provides the reusable deliverable:
 Minimal use:
 
 ```rust
-use sedenion::{auto_zda_gradient_scale, zda_batch_loss_and_grad, Sedenion};
+use sedenion::{
+    auto_zda_gradient_scale, classify_triangular_support, zda_batch_loss_and_grad,
+    Sedenion, TriangularSupport,
+};
 
 let z = Sedenion::new([
     1.0, 2.0, 3.0, 4.0,
@@ -72,6 +77,13 @@ let z2 = z.square();
 let left = z.left_mul_matrix();
 let score = z.zda_score();
 let (loss, grad) = z.zda_loss_and_grad();
+
+let support = z.support_mask(1e-6);
+let support_class = classify_triangular_support(support);
+assert!(matches!(
+    support_class,
+    TriangularSupport::Strong { .. } | TriangularSupport::Ghost { .. } | TriangularSupport::Bad
+));
 
 let batch = [z, z2];
 let (batch_loss, batch_grad) = zda_batch_loss_and_grad(&batch);

@@ -13,6 +13,35 @@ fn avg<F: Fn(&Result) -> f64>(rs: &[Result], f: F) -> f64 {
     rs.iter().map(|r| f(r)).sum::<f64>() / rs.len() as f64
 }
 
+fn weighted_mean_opt<C, M>(rs: &[Result], count: C, mean: M) -> Option<f64>
+where
+    C: Fn(&Result) -> usize,
+    M: Fn(&Result) -> Option<f64>,
+{
+    let mut sum = 0.0;
+    let mut total = 0usize;
+    for r in rs {
+        let n = count(r);
+        if n > 0 {
+            if let Some(v) = mean(r) {
+                sum += v * n as f64;
+                total += n;
+            }
+        }
+    }
+    (total > 0).then(|| sum / total as f64)
+}
+
+fn fmt_opt(v: Option<f64>) -> String {
+    v.map(|x| format!("{x:.3}")).unwrap_or_else(|| "n/a".into())
+}
+
+fn avg_root_rate(rs: &[Result], rank: usize) -> f64 {
+    avg(rs, |r| {
+        r.support.root_rank_hist[rank] as f64 / r.support.total.max(1) as f64
+    })
+}
+
 struct Arm {
     name: &'static str,
     sed: bool,
@@ -100,6 +129,28 @@ fn run(
             avg(&rs, |r| r.collapse.min_std),
         );
     }
+    println!("\ntriangular support telemetry (held-out embeddings, |component| > 0.25)");
+    println!(
+        "{:<24}  {:>8}  {:>8}  {:>8}  {:>6} {:>6} {:>6} {:>6}  {:>8} {:>8} {:>8}",
+        "arm", "strong%", "ghost%", "bad%", "r1%", "r2%", "r3%", "r4%", "zda_S", "zda_G", "zda_B"
+    );
+    for (ai, a) in arms.iter().enumerate() {
+        let rs = &per_arm[ai];
+        println!(
+            "{:<24}  {:>7.1}%  {:>7.1}%  {:>7.1}%  {:>5.1}% {:>5.1}% {:>5.1}% {:>5.1}%  {:>8} {:>8} {:>8}",
+            a.name,
+            100.0 * avg(&rs, |r| r.support.strong_rate()),
+            100.0 * avg(&rs, |r| r.support.ghost_rate()),
+            100.0 * avg(&rs, |r| r.support.bad_rate()),
+            100.0 * avg_root_rate(rs, 1),
+            100.0 * avg_root_rate(rs, 2),
+            100.0 * avg_root_rate(rs, 3),
+            100.0 * avg_root_rate(rs, 4),
+            fmt_opt(weighted_mean_opt(rs, |r| r.support.strong, |r| r.support.mean_zda_strong)),
+            fmt_opt(weighted_mean_opt(rs, |r| r.support.ghost, |r| r.support.mean_zda_ghost)),
+            fmt_opt(weighted_mean_opt(rs, |r| r.support.bad, |r| r.support.mean_zda_bad)),
+        );
+    }
 }
 
 fn main() {
@@ -131,5 +182,6 @@ fn main() {
     println!("  gaussian↓  — held-out Epps-Pulley statistic against N(0,1).");
     println!("  isotropy↓  — distance from isotropic covariance (0 = isotropic; SIGReg wants this small).");
     println!("  min_std    — smallest per-axis std (→0 = a dead/collapsed axis).");
+    println!("  strong/ghost/bad — triangular-root support class rates at |component| > 0.25.");
     println!("\nKey question: does auto-balanced ZDA improve probe_acc without a λ sweep?");
 }

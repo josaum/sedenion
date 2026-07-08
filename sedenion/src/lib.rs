@@ -4,13 +4,14 @@
 //! - 64-byte alignment (one L1 cache line, one AVX-512 register)
 //! - O(N) squaring via the anti-commutativity trick
 //! - Zero-divisor detection and auto-balanced ZDA-Reg primitives
+//! - Triangular-root support-mask classification
 //! - Power-associative exponentiation
 //! - Zero-cost subalgebra sketches
 //!
 //! All operations are `#[inline(always)]` for aggressive compiler optimization.
 //! Compile with `RUSTFLAGS="-C target-cpu=native"` for auto-vectorization.
 
-use std::ops::{Add, Sub, Mul, Neg};
+use std::ops::{Add, Mul, Neg, Sub};
 
 // =============================================================================
 // Core Design Decisions
@@ -36,11 +37,17 @@ impl Quaternion {
         Self([a, b, c, d])
     }
 
-    pub const fn zero() -> Self { Self([0.0; 4]) }
-    pub const fn one() -> Self { Self([1.0, 0.0, 0.0, 0.0]) }
+    pub const fn zero() -> Self {
+        Self([0.0; 4])
+    }
+    pub const fn one() -> Self {
+        Self([1.0, 0.0, 0.0, 0.0])
+    }
 
     #[inline(always)]
-    pub fn real(&self) -> f32 { self.0[0] }
+    pub fn real(&self) -> f32 {
+        self.0[0]
+    }
 
     #[inline(always)]
     pub fn imag(&self) -> [f32; 3] {
@@ -54,7 +61,10 @@ impl Quaternion {
 
     #[inline(always)]
     pub fn norm_sq(&self) -> f32 {
-        self.0[0]*self.0[0] + self.0[1]*self.0[1] + self.0[2]*self.0[2] + self.0[3]*self.0[3]
+        self.0[0] * self.0[0]
+            + self.0[1] * self.0[1]
+            + self.0[2] * self.0[2]
+            + self.0[3] * self.0[3]
     }
 
     #[inline(always)]
@@ -65,14 +75,16 @@ impl Quaternion {
     #[inline(always)]
     pub fn inv(&self) -> Option<Self> {
         let n = self.norm_sq();
-        if n == 0.0 { return None; }
+        if n == 0.0 {
+            return None;
+        }
         let c = self.conj();
-        Some(Self([c.0[0]/n, c.0[1]/n, c.0[2]/n, c.0[3]/n]))
+        Some(Self([c.0[0] / n, c.0[1] / n, c.0[2] / n, c.0[3] / n]))
     }
 
     #[inline(always)]
     pub fn scale(&self, s: f32) -> Self {
-        Self([self.0[0]*s, self.0[1]*s, self.0[2]*s, self.0[3]*s])
+        Self([self.0[0] * s, self.0[1] * s, self.0[2] * s, self.0[3] * s])
     }
 }
 
@@ -118,10 +130,10 @@ impl Mul for Quaternion {
         let [a0, a1, a2, a3] = self.0;
         let [b0, b1, b2, b3] = rhs.0;
         Self([
-            a0*b0 - a1*b1 - a2*b2 - a3*b3,
-            a0*b1 + a1*b0 + a2*b3 - a3*b2,
-            a0*b2 - a1*b3 + a2*b0 + a3*b1,
-            a0*b3 + a1*b2 - a2*b1 + a3*b0,
+            a0 * b0 - a1 * b1 - a2 * b2 - a3 * b3,
+            a0 * b1 + a1 * b0 + a2 * b3 - a3 * b2,
+            a0 * b2 - a1 * b3 + a2 * b0 + a3 * b1,
+            a0 * b3 + a1 * b2 - a2 * b1 + a3 * b0,
         ])
     }
 }
@@ -135,34 +147,47 @@ impl Mul for Quaternion {
 pub struct Octonion([f32; 8]);
 
 impl Octonion {
-    pub fn new(a: [f32; 8]) -> Self { Self(a) }
-    pub const fn zero() -> Self { Self([0.0; 8]) }
-    pub fn one() -> Self { Self([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]) }
+    pub fn new(a: [f32; 8]) -> Self {
+        Self(a)
+    }
+    pub const fn zero() -> Self {
+        Self([0.0; 8])
+    }
+    pub fn one() -> Self {
+        Self([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    }
 
     #[inline(always)]
-    pub fn real(&self) -> f32 { self.0[0] }
+    pub fn real(&self) -> f32 {
+        self.0[0]
+    }
 
     #[inline(always)]
     pub fn as_quaternion_pair(&self) -> (Quaternion, Quaternion) {
-        (Quaternion::new(self.0[0], self.0[1], self.0[2], self.0[3]),
-         Quaternion::new(self.0[4], self.0[5], self.0[6], self.0[7]))
+        (
+            Quaternion::new(self.0[0], self.0[1], self.0[2], self.0[3]),
+            Quaternion::new(self.0[4], self.0[5], self.0[6], self.0[7]),
+        )
     }
 
     #[inline(always)]
     pub fn from_quaternion_pair(a: Quaternion, b: Quaternion) -> Self {
-        Self([a.0[0], a.0[1], a.0[2], a.0[3],
-              b.0[0], b.0[1], b.0[2], b.0[3]])
+        Self([
+            a.0[0], a.0[1], a.0[2], a.0[3], b.0[0], b.0[1], b.0[2], b.0[3],
+        ])
     }
 
     #[inline(always)]
     pub fn conj(&self) -> Self {
-        Self([self.0[0], -self.0[1], -self.0[2], -self.0[3],
-              -self.0[4], -self.0[5], -self.0[6], -self.0[7]])
+        Self([
+            self.0[0], -self.0[1], -self.0[2], -self.0[3], -self.0[4], -self.0[5], -self.0[6],
+            -self.0[7],
+        ])
     }
 
     #[inline(always)]
     pub fn norm_sq(&self) -> f32 {
-        self.0.iter().map(|x| x*x).sum()
+        self.0.iter().map(|x| x * x).sum()
     }
 
     #[inline(always)]
@@ -173,11 +198,19 @@ impl Octonion {
     #[inline(always)]
     pub fn inv(&self) -> Option<Self> {
         let n = self.norm_sq();
-        if n == 0.0 { return None; }
+        if n == 0.0 {
+            return None;
+        }
         let c = self.conj();
         Some(Self([
-            c.0[0]/n, c.0[1]/n, c.0[2]/n, c.0[3]/n,
-            c.0[4]/n, c.0[5]/n, c.0[6]/n, c.0[7]/n,
+            c.0[0] / n,
+            c.0[1] / n,
+            c.0[2] / n,
+            c.0[3] / n,
+            c.0[4] / n,
+            c.0[5] / n,
+            c.0[6] / n,
+            c.0[7] / n,
         ]))
     }
 
@@ -192,8 +225,14 @@ impl Add for Octonion {
     #[inline(always)]
     fn add(self, rhs: Self) -> Self {
         Self([
-            self.0[0]+rhs.0[0], self.0[1]+rhs.0[1], self.0[2]+rhs.0[2], self.0[3]+rhs.0[3],
-            self.0[4]+rhs.0[4], self.0[5]+rhs.0[5], self.0[6]+rhs.0[6], self.0[7]+rhs.0[7],
+            self.0[0] + rhs.0[0],
+            self.0[1] + rhs.0[1],
+            self.0[2] + rhs.0[2],
+            self.0[3] + rhs.0[3],
+            self.0[4] + rhs.0[4],
+            self.0[5] + rhs.0[5],
+            self.0[6] + rhs.0[6],
+            self.0[7] + rhs.0[7],
         ])
     }
 }
@@ -203,8 +242,14 @@ impl Sub for Octonion {
     #[inline(always)]
     fn sub(self, rhs: Self) -> Self {
         Self([
-            self.0[0]-rhs.0[0], self.0[1]-rhs.0[1], self.0[2]-rhs.0[2], self.0[3]-rhs.0[3],
-            self.0[4]-rhs.0[4], self.0[5]-rhs.0[5], self.0[6]-rhs.0[6], self.0[7]-rhs.0[7],
+            self.0[0] - rhs.0[0],
+            self.0[1] - rhs.0[1],
+            self.0[2] - rhs.0[2],
+            self.0[3] - rhs.0[3],
+            self.0[4] - rhs.0[4],
+            self.0[5] - rhs.0[5],
+            self.0[6] - rhs.0[6],
+            self.0[7] - rhs.0[7],
         ])
     }
 }
@@ -226,7 +271,7 @@ impl Mul for Octonion {
         let (c, d) = rhs.as_quaternion_pair();
         let ac = a * c;
         let d_conj = d.conj();
-        let b_dconj = d_conj * b;  // Note: order matters (non-commutative)
+        let b_dconj = d_conj * b; // Note: order matters (non-commutative)
         let left = ac - b_dconj;
         let da = d * a;
         let c_conj = c.conj();
@@ -245,11 +290,16 @@ impl Mul for Octonion {
 pub struct Sedenion([f32; 16]);
 
 impl Sedenion {
-    pub fn new(a: [f32; 16]) -> Self { Self(a) }
-    pub const fn zero() -> Self { Self([0.0; 16]) }
+    pub fn new(a: [f32; 16]) -> Self {
+        Self(a)
+    }
+    pub const fn zero() -> Self {
+        Self([0.0; 16])
+    }
     pub fn one() -> Self {
-        Self([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        Self([
+            1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ])
     }
 
     /// Construct from two octonions.
@@ -276,13 +326,36 @@ impl Sedenion {
     // -------------------------------------------------------------------------
 
     #[inline(always)]
-    pub fn real(&self) -> f32 { self.0[0] }
+    pub fn real(&self) -> f32 {
+        self.0[0]
+    }
 
     #[inline(always)]
-    pub fn components(&self) -> &[f32; 16] { &self.0 }
+    pub fn components(&self) -> &[f32; 16] {
+        &self.0
+    }
 
     #[inline(always)]
-    pub fn components_mut(&mut self) -> &mut [f32; 16] { &mut self.0 }
+    pub fn components_mut(&mut self) -> &mut [f32; 16] {
+        &mut self.0
+    }
+
+    /// Bitmask of active canonical basis components.
+    ///
+    /// Bit `i` is set when `|component_i| > threshold`. The triangular-root
+    /// support classifiers below ignore bit 0, so callers can pass this mask
+    /// directly when they want to classify the active imaginary support.
+    #[inline(always)]
+    pub fn support_mask(&self, threshold: f32) -> u16 {
+        let threshold = threshold.abs();
+        let mut mask = 0u16;
+        for i in 0..16 {
+            if self.0[i].abs() > threshold {
+                mask |= 1u16 << i;
+            }
+        }
+        mask
+    }
 
     // -------------------------------------------------------------------------
     // Core algebra
@@ -291,7 +364,9 @@ impl Sedenion {
     #[inline(always)]
     pub fn conj(&self) -> Self {
         let mut r = self.0;
-        for i in 1..16 { r[i] = -r[i]; }
+        for i in 1..16 {
+            r[i] = -r[i];
+        }
         Self(r)
     }
 
@@ -312,7 +387,9 @@ impl Sedenion {
     #[inline(always)]
     pub fn inv(&self) -> Option<Self> {
         let n = self.norm_sq();
-        if n == 0.0 { return None; }
+        if n == 0.0 {
+            return None;
+        }
         let c = self.conj();
         Some(c.scale(1.0 / n))
     }
@@ -472,7 +549,9 @@ impl Sedenion {
     /// Integer power (power-associative, so z^n is unambiguous).
     #[inline(always)]
     pub fn powi(&self, n: i32) -> Self {
-        if n == 0 { return Self::one(); }
+        if n == 0 {
+            return Self::one();
+        }
         if n < 0 {
             let inv = self.inv().expect("Cannot invert zero sedenion");
             return inv.powi(-n);
@@ -482,8 +561,10 @@ impl Sedenion {
         let mut base = *self;
         let mut exp = n as u32;
         while exp > 0 {
-            if exp & 1 == 1 { result = result * base; }
-            base = base.square();  // O(N) squaring instead of O(N^2) multiply
+            if exp & 1 == 1 {
+                result = result * base;
+            }
+            base = base.square(); // O(N) squaring instead of O(N^2) multiply
             exp >>= 1;
         }
         result
@@ -569,10 +650,22 @@ impl Add for Sedenion {
     #[inline(always)]
     fn add(self, rhs: Self) -> Self {
         Self([
-            self.0[0]+rhs.0[0], self.0[1]+rhs.0[1], self.0[2]+rhs.0[2], self.0[3]+rhs.0[3],
-            self.0[4]+rhs.0[4], self.0[5]+rhs.0[5], self.0[6]+rhs.0[6], self.0[7]+rhs.0[7],
-            self.0[8]+rhs.0[8], self.0[9]+rhs.0[9], self.0[10]+rhs.0[10], self.0[11]+rhs.0[11],
-            self.0[12]+rhs.0[12], self.0[13]+rhs.0[13], self.0[14]+rhs.0[14], self.0[15]+rhs.0[15],
+            self.0[0] + rhs.0[0],
+            self.0[1] + rhs.0[1],
+            self.0[2] + rhs.0[2],
+            self.0[3] + rhs.0[3],
+            self.0[4] + rhs.0[4],
+            self.0[5] + rhs.0[5],
+            self.0[6] + rhs.0[6],
+            self.0[7] + rhs.0[7],
+            self.0[8] + rhs.0[8],
+            self.0[9] + rhs.0[9],
+            self.0[10] + rhs.0[10],
+            self.0[11] + rhs.0[11],
+            self.0[12] + rhs.0[12],
+            self.0[13] + rhs.0[13],
+            self.0[14] + rhs.0[14],
+            self.0[15] + rhs.0[15],
         ])
     }
 }
@@ -582,10 +675,22 @@ impl Sub for Sedenion {
     #[inline(always)]
     fn sub(self, rhs: Self) -> Self {
         Self([
-            self.0[0]-rhs.0[0], self.0[1]-rhs.0[1], self.0[2]-rhs.0[2], self.0[3]-rhs.0[3],
-            self.0[4]-rhs.0[4], self.0[5]-rhs.0[5], self.0[6]-rhs.0[6], self.0[7]-rhs.0[7],
-            self.0[8]-rhs.0[8], self.0[9]-rhs.0[9], self.0[10]-rhs.0[10], self.0[11]-rhs.0[11],
-            self.0[12]-rhs.0[12], self.0[13]-rhs.0[13], self.0[14]-rhs.0[14], self.0[15]-rhs.0[15],
+            self.0[0] - rhs.0[0],
+            self.0[1] - rhs.0[1],
+            self.0[2] - rhs.0[2],
+            self.0[3] - rhs.0[3],
+            self.0[4] - rhs.0[4],
+            self.0[5] - rhs.0[5],
+            self.0[6] - rhs.0[6],
+            self.0[7] - rhs.0[7],
+            self.0[8] - rhs.0[8],
+            self.0[9] - rhs.0[9],
+            self.0[10] - rhs.0[10],
+            self.0[11] - rhs.0[11],
+            self.0[12] - rhs.0[12],
+            self.0[13] - rhs.0[13],
+            self.0[14] - rhs.0[14],
+            self.0[15] - rhs.0[15],
         ])
     }
 }
@@ -634,12 +739,16 @@ impl Mul for Sedenion {
 pub struct SedenionMatrix {
     rows: usize,
     cols: usize,
-    data: Vec<Sedenion>,  // row-major: data[i * cols + j] = W_{ij}
+    data: Vec<Sedenion>, // row-major: data[i * cols + j] = W_{ij}
 }
 
 impl SedenionMatrix {
     pub fn zeros(rows: usize, cols: usize) -> Self {
-        Self { rows, cols, data: vec![Sedenion::zero(); rows * cols] }
+        Self {
+            rows,
+            cols,
+            data: vec![Sedenion::zero(); rows * cols],
+        }
     }
 
     pub fn from_vec(rows: usize, cols: usize, data: Vec<Sedenion>) -> Self {
@@ -651,7 +760,7 @@ impl SedenionMatrix {
         use rand::distributions::{Distribution, Standard};
         use rand::thread_rng;
         let mut rng = thread_rng();
-        let data: Vec<Sedenion> = (0..rows*cols)
+        let data: Vec<Sedenion> = (0..rows * cols)
             .map(|_| {
                 let arr: [f32; 16] = Standard.sample(&mut rng);
                 Sedenion::new(arr)
@@ -668,7 +777,7 @@ impl SedenionMatrix {
             let mut sum = Sedenion::zero();
             for j in 0..self.cols {
                 let w = self.data[i * self.cols + j];
-                sum = sum + w * x[j];  // left-multiply convention
+                sum = sum + w * x[j]; // left-multiply convention
             }
             y[i] = sum;
         }
@@ -704,13 +813,8 @@ impl SedenionMatrix {
 /// Batch sedenion vector-matrix multiply.
 /// Input: batch of vectors X[batch][in_features]
 /// Output: batch of vectors Y[batch][out_features]
-pub fn batch_matvec(
-    w: &SedenionMatrix,
-    x_batch: &[Vec<Sedenion>],
-) -> Vec<Vec<Sedenion>> {
-    x_batch.iter()
-        .map(|x| w.matvec(x))
-        .collect()
+pub fn batch_matvec(w: &SedenionMatrix, x_batch: &[Vec<Sedenion>]) -> Vec<Vec<Sedenion>> {
+    x_batch.iter().map(|x| w.matvec(x)).collect()
 }
 
 /// Mean ZDA-Reg barrier loss and component gradients for a batch.
@@ -766,6 +870,144 @@ pub fn auto_zda_gradient_scale(
 }
 
 // =============================================================================
+// Sedenion triangular-root support masks
+// =============================================================================
+
+/// Bits `1..15`, the purely imaginary canonical-basis support.
+pub const IMAGINARY_SUPPORT_MASK: u16 = 0xfffe;
+
+const OCTONION_IMAGINARY_SUPPORT_MASK: u16 = 0x00fe;
+
+/// Classification of a 16-bit sedenion support under the triangular-root filter.
+///
+/// `Strong` masks are projective cells whose coordinate span is ZD-free.
+/// `Ghost` masks are projective cells whose coordinate span contains at least
+/// one zero divisor. `Bad` masks are not closed under the Cayley-Dickson XOR
+/// support law and therefore have no geometric triangular root.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TriangularSupport {
+    Strong { root_mask: u16 },
+    Ghost { root_mask: u16 },
+    Bad,
+}
+
+/// Return the geometric triangular root for a support mask, if it exists.
+///
+/// The scalar bit is ignored. A root exists exactly when the active imaginary
+/// support is a nonzero projective cell: `P = U \ {0}` for a subspace
+/// `U <= F_2^4`. The returned mask is the canonical GF(2) RREF basis of `U`.
+pub fn geometric_triangular_root(mask: u16) -> Option<u16> {
+    let support = mask & IMAGINARY_SUPPORT_MASK;
+    if support == 0 {
+        return None;
+    }
+    if !is_triangularly_closed_support(support) {
+        return None;
+    }
+    Some(rref_root_mask(support))
+}
+
+/// Classify a support mask as strong, ghost, or bad.
+///
+/// This is a support-level diagnostic. `Ghost` means the coordinate span
+/// contains some zero divisor; it does not claim that every vector with that
+/// support is itself a zero divisor or that it annihilates a desired target.
+pub fn classify_triangular_support(mask: u16) -> TriangularSupport {
+    let Some(root_mask) = geometric_triangular_root(mask) else {
+        return TriangularSupport::Bad;
+    };
+
+    if is_zd_degenerate_support(mask) {
+        TriangularSupport::Ghost { root_mask }
+    } else {
+        TriangularSupport::Strong { root_mask }
+    }
+}
+
+/// Whether the imaginary support is closed under the Cayley-Dickson XOR law.
+pub fn is_triangularly_closed_support(mask: u16) -> bool {
+    let support = mask & IMAGINARY_SUPPORT_MASK;
+    if support == 0 {
+        return false;
+    }
+
+    for a in 1..16 {
+        if support & (1u16 << a) == 0 {
+            continue;
+        }
+        for b in 1..16 {
+            if a == b || support & (1u16 << b) == 0 {
+                continue;
+            }
+            if support & (1u16 << (a ^ b)) == 0 {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Whether a support's coordinate span contains a nonzero sedenion zero divisor.
+///
+/// This implements the DOI package criterion for the fixed split
+/// `S = O + O`, with index `8` as the second octonion's real direction.
+pub fn is_zd_degenerate_support(mask: u16) -> bool {
+    let support = mask & IMAGINARY_SUPPORT_MASK;
+    let a = support & OCTONION_IMAGINARY_SUPPORT_MASK;
+    let b = second_octonion_imaginary_label_mask(support);
+
+    if a == 0 || b == 0 {
+        return false;
+    }
+    !(a == b && a.count_ones() == 1)
+}
+
+fn second_octonion_imaginary_label_mask(mask: u16) -> u16 {
+    let mut out = 0u16;
+    for u in 1..8 {
+        if mask & (1u16 << (8 + u)) != 0 {
+            out |= 1u16 << u;
+        }
+    }
+    out
+}
+
+fn rref_root_mask(mask: u16) -> u16 {
+    let mut rows = [0u8; 15];
+    let mut len = 0usize;
+    for idx in 1..16 {
+        if mask & (1u16 << idx) != 0 {
+            rows[len] = idx as u8;
+            len += 1;
+        }
+    }
+
+    let mut rank = 0usize;
+    for col in 0..4 {
+        let bit = 1u8 << col;
+        let Some(pivot) = (rank..len).find(|&row| rows[row] & bit != 0) else {
+            continue;
+        };
+        rows.swap(rank, pivot);
+
+        for row in 0..len {
+            if row != rank && rows[row] & bit != 0 {
+                rows[row] ^= rows[rank];
+            }
+        }
+        rank += 1;
+    }
+
+    let mut out = 0u16;
+    for &row in &rows[..rank] {
+        if row != 0 {
+            out |= 1u16 << row;
+        }
+    }
+    out
+}
+
+// =============================================================================
 // Isotropic Gaussian utilities for SIGReg
 // =============================================================================
 
@@ -773,7 +1015,9 @@ pub fn auto_zda_gradient_scale(
 /// Returns the mean and covariance deviation from identity.
 pub fn isotropic_check(batch: &[Sedenion]) -> (f32, f32) {
     let n = batch.len() as f32;
-    if n == 0.0 { return (0.0, 0.0); }
+    if n == 0.0 {
+        return (0.0, 0.0);
+    }
 
     // Mean of each component
     let mut mean = [0.0f32; 16];
@@ -782,7 +1026,9 @@ pub fn isotropic_check(batch: &[Sedenion]) -> (f32, f32) {
             mean[i] += z.0[i];
         }
     }
-    for i in 0..16 { mean[i] /= n; }
+    for i in 0..16 {
+        mean[i] /= n;
+    }
 
     // Component variances
     let mut var = [0.0f32; 16];
@@ -792,7 +1038,9 @@ pub fn isotropic_check(batch: &[Sedenion]) -> (f32, f32) {
             var[i] += diff * diff;
         }
     }
-    for i in 0..16 { var[i] /= n; }
+    for i in 0..16 {
+        var[i] /= n;
+    }
 
     let mean_dev = mean.iter().map(|m| m.abs()).sum::<f32>() / 16.0;
     let var_avg = var.iter().sum::<f32>() / 16.0;
@@ -804,10 +1052,9 @@ pub fn isotropic_check(batch: &[Sedenion]) -> (f32, f32) {
 /// 1D random projection sketch for SIGReg.
 /// Projects a batch of sedenions onto a random unit vector in R^16.
 pub fn sketch_projection(batch: &[Sedenion], proj: &[f32; 16]) -> Vec<f32> {
-    batch.iter()
-        .map(|z| {
-            z.0.iter().zip(proj.iter()).map(|(a, b)| a * b).sum::<f32>()
-        })
+    batch
+        .iter()
+        .map(|z| z.0.iter().zip(proj.iter()).map(|(a, b)| a * b).sum::<f32>())
         .collect()
 }
 
@@ -819,6 +1066,10 @@ pub fn sketch_projection(batch: &[Sedenion], proj: &[f32; 16]) -> Vec<f32> {
 mod tests {
     use super::*;
 
+    fn mask(indices: &[usize]) -> u16 {
+        indices.iter().fold(0u16, |acc, &idx| acc | (1u16 << idx))
+    }
+
     #[test]
     fn test_alignment() {
         // Ensure 64-byte alignment for cache-line optimization
@@ -828,8 +1079,9 @@ mod tests {
 
     #[test]
     fn test_sedenion_mul_identity() {
-        let a = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let a = Sedenion::new([
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ]);
         let one = Sedenion::one();
         let r = a * one;
         assert_eq!(r, a);
@@ -855,8 +1107,9 @@ mod tests {
 
     #[test]
     fn test_inv_roundtrip() {
-        let a = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let a = Sedenion::new([
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ]);
         let a_inv = a.inv().unwrap();
         let prod = a * a_inv;
         let one = Sedenion::one();
@@ -867,8 +1120,9 @@ mod tests {
 
     #[test]
     fn test_power_associative() {
-        let z = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let z = Sedenion::new([
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ]);
         // z^3 via powi should equal z*z*z
         let z3_direct = z * z * z;
         let z3_pow = z.powu(3);
@@ -880,14 +1134,19 @@ mod tests {
     #[test]
     fn test_o_n_squaring_vs_full_mul() {
         // Verify that square() == self * self
-        let z = Sedenion::new([2.0, 1.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let z = Sedenion::new([
+            2.0, 1.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ]);
         let sq_fast = z.square();
         let sq_full = z * z;
         for i in 0..16 {
-            assert!((sq_fast.0[i] - sq_full.0[i]).abs() < 1e-4,
+            assert!(
+                (sq_fast.0[i] - sq_full.0[i]).abs() < 1e-4,
                 "O(N) squaring mismatch at index {}: fast={} full={}",
-                i, sq_fast.0[i], sq_full.0[i]);
+                i,
+                sq_fast.0[i],
+                sq_full.0[i]
+            );
         }
     }
 
@@ -898,8 +1157,9 @@ mod tests {
         zd[10] = 1.0;
         let near_zero_divisor = Sedenion::new(zd);
 
-        let away = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-                                  9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let away = Sedenion::new([
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ]);
 
         assert!(near_zero_divisor.zda_score() < 1e-6);
         assert!(away.zda_score() > near_zero_divisor.zda_score());
@@ -907,9 +1167,94 @@ mod tests {
     }
 
     #[test]
+    fn test_triangular_root_classifies_doi_examples() {
+        let octonion_line = mask(&[1, 2, 3]);
+        assert_eq!(
+            geometric_triangular_root(octonion_line),
+            Some(mask(&[1, 2]))
+        );
+        assert_eq!(
+            classify_triangular_support(octonion_line),
+            TriangularSupport::Strong {
+                root_mask: mask(&[1, 2])
+            }
+        );
+
+        let vertical_line = mask(&[1, 8, 9]);
+        assert_eq!(
+            geometric_triangular_root(vertical_line),
+            Some(mask(&[1, 8]))
+        );
+        assert_eq!(
+            classify_triangular_support(vertical_line),
+            TriangularSupport::Strong {
+                root_mask: mask(&[1, 8])
+            }
+        );
+
+        let ghost_line = mask(&[1, 10, 11]);
+        assert_eq!(geometric_triangular_root(ghost_line), Some(mask(&[1, 10])));
+        assert_eq!(
+            classify_triangular_support(ghost_line),
+            TriangularSupport::Ghost {
+                root_mask: mask(&[1, 10])
+            }
+        );
+
+        assert_eq!(geometric_triangular_root(mask(&[1, 2, 4])), None);
+        assert_eq!(
+            classify_triangular_support(mask(&[1, 2, 4])),
+            TriangularSupport::Bad
+        );
+    }
+
+    #[test]
+    fn test_triangular_support_counts_match_doi_package() {
+        let mut strong = 0;
+        let mut ghost = 0;
+        let mut bad = 0;
+
+        for raw in 0u32..(1u32 << 16) {
+            let mask = raw as u16;
+            if mask & 1 != 0 || mask & 0xfffe == 0 {
+                continue;
+            }
+
+            match classify_triangular_support(mask) {
+                TriangularSupport::Strong { .. } => strong += 1,
+                TriangularSupport::Ghost { .. } => ghost += 1,
+                TriangularSupport::Bad => bad += 1,
+            }
+        }
+
+        assert_eq!(strong, 30);
+        assert_eq!(ghost, 36);
+        assert_eq!(strong + ghost, 66);
+        assert_eq!(bad, 32701);
+    }
+
+    #[test]
+    fn test_ghost_support_is_not_a_claim_every_vector_annihilates() {
+        let z = Sedenion::new([
+            0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+        ]);
+        let support = z.support_mask(0.0);
+
+        assert_eq!(support, mask(&[1, 10, 11]));
+        assert_eq!(
+            classify_triangular_support(support),
+            TriangularSupport::Ghost {
+                root_mask: mask(&[1, 10])
+            }
+        );
+        assert_eq!(z.zero_divisor_status().0, false);
+    }
+
+    #[test]
     fn test_zda_barrier_gradient_matches_finite_difference() {
-        let z = Sedenion::new([1.2, -0.7, 0.4, 1.1, -1.3, 0.8, 0.5, -0.9,
-                               0.6, 1.4, -1.1, 0.3, 0.7, -0.4, 1.5, -0.8]);
+        let z = Sedenion::new([
+            1.2, -0.7, 0.4, 1.1, -1.3, 0.8, 0.5, -0.9, 0.6, 1.4, -1.1, 0.3, 0.7, -0.4, 1.5, -0.8,
+        ]);
         let (_, grad) = z.zda_loss_and_grad();
 
         let eps = 1e-3;
@@ -930,10 +1275,12 @@ mod tests {
 
     #[test]
     fn test_zda_batch_loss_is_average() {
-        let a = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
-        let b = Sedenion::new([0.5, -0.2, 0.7, 1.1, -0.8, 0.4, 0.9, -1.3,
-                               1.0, -0.6, 0.2, 0.8, -1.1, 1.5, -0.4, 0.3]);
+        let a = Sedenion::new([
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ]);
+        let b = Sedenion::new([
+            0.5, -0.2, 0.7, 1.1, -0.8, 0.4, 0.9, -1.3, 1.0, -0.6, 0.2, 0.8, -1.1, 1.5, -0.4, 0.3,
+        ]);
         let (loss, grad) = zda_batch_loss_and_grad(&[a, b]);
         assert!((loss - 0.5 * (a.zda_loss() + b.zda_loss())).abs() < 1e-6);
         assert_eq!(grad.len(), 2);
@@ -942,8 +1289,9 @@ mod tests {
 
     #[test]
     fn test_sketches_are_zero_cost() {
-        let z = Sedenion::new([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-                               9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
+        let z = Sedenion::new([
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+        ]);
         let q = z.sketch_quaternion();
         assert_eq!(q[0], 1.0);
         assert_eq!(q[1], 2.0);
@@ -952,7 +1300,7 @@ mod tests {
         assert_eq!(o[7], 8.0);
 
         let v = z.sketch_imaginary();
-        assert_eq!(v[0], 2.0);  // component 1 of original
+        assert_eq!(v[0], 2.0); // component 1 of original
         assert_eq!(v[14], 16.0); // component 15 of original
     }
 
@@ -961,7 +1309,9 @@ mod tests {
         let mut s = seed.wrapping_mul(2654435761).wrapping_add(1);
         let mut c = [0.0f32; 16];
         for v in c.iter_mut() {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             *v = ((s >> 33) as f32 / (1u64 << 31) as f32) * 2.0 - 1.0;
         }
         Sedenion::new(c)
@@ -1030,7 +1380,10 @@ mod tests {
                 max_diff = max_diff.max((lab[i][j] - prod[i][j]).abs());
             }
         }
-        assert!(max_diff > 1e-3, "expected non-associativity, got L_ab == L_a L_b");
+        assert!(
+            max_diff > 1e-3,
+            "expected non-associativity, got L_ab == L_a L_b"
+        );
     }
 
     #[test]
@@ -1041,7 +1394,10 @@ mod tests {
         let lac = a.conj().left_mul_matrix();
         for i in 0..16 {
             for j in 0..16 {
-                assert!((la[j][i] - lac[i][j]).abs() < 1e-5, "adjoint identity fails");
+                assert!(
+                    (la[j][i] - lac[i][j]).abs() < 1e-5,
+                    "adjoint identity fails"
+                );
             }
         }
     }
@@ -1055,7 +1411,10 @@ mod tests {
         let la = a.left_mul_matrix();
         for i in 0..16 {
             for j in 0..16 {
-                assert!((la[i][j] + la[j][i]).abs() < 1e-5, "L_a not skew at ({i},{j})");
+                assert!(
+                    (la[i][j] + la[j][i]).abs() < 1e-5,
+                    "L_a not skew at ({i},{j})"
+                );
             }
         }
     }

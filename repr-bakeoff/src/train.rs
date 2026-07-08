@@ -1,7 +1,9 @@
 //! Training driver shared by both arms.
 
 use crate::data::{Dataset, EMB};
-use crate::metrics::{collapse_metrics, linear_probe, Collapse};
+use crate::metrics::{
+    collapse_metrics, linear_probe, support_class_metrics, Collapse, SupportClassMetrics,
+};
 use crate::model::{loss_and_grad, zda_loss_and_grad, Encoder, LossWeights};
 use crate::sigreg::{gaussianity, sample_dirs, sigreg};
 use rand::rngs::StdRng;
@@ -15,11 +17,14 @@ pub struct Result {
     pub collapse: Collapse,
     /// Held-out Gaussianity (mean Epps–Pulley statistic; 0 = isotropic Gaussian).
     pub gaussianity: f64,
+    /// Held-out triangular-root support telemetry over test embeddings.
+    pub support: SupportClassMetrics,
 }
 
 /// SIGReg sketch settings.
 const SIG_DIRS: usize = 16; // random projection directions per step
 const SIG_SUB: usize = 512; // sketch subsample size (caps the O(n²) EP cost)
+const SUPPORT_THRESHOLD: f32 = 0.25;
 
 fn grad_rms(g: &[[f32; EMB]]) -> f32 {
     let mut ss = 0.0f32;
@@ -118,6 +123,7 @@ pub fn train_and_eval(
     let probe_acc = linear_probe(&train_emb, &train_lab, &test_emb, &test_lab, data.n_classes);
     let collapse = collapse_metrics(&test_emb);
     let gauss = gaussianity(&test_emb, 0xE7A1 ^ n_params as u64, 32);
+    let support = support_class_metrics(&test_emb, SUPPORT_THRESHOLD);
 
     Result {
         n_params,
@@ -125,5 +131,6 @@ pub fn train_and_eval(
         probe_acc,
         collapse,
         gaussianity: gauss,
+        support,
     }
 }

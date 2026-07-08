@@ -1,9 +1,11 @@
 //! Guardrails: the analytic gradients must match finite differences, or no
 //! result from this crate can be trusted.
 
-use repr_bakeoff::data::EMB;
-use repr_bakeoff::model::{loss_and_grad, LossWeights};
+use repr_bakeoff::data::{generate, EMB};
+use repr_bakeoff::metrics::support_class_metrics;
+use repr_bakeoff::model::{loss_and_grad, Encoder, LossWeights};
 use repr_bakeoff::sigreg::{sample_dirs, sigreg};
+use repr_bakeoff::train::train_and_eval;
 use sedenion::Sedenion;
 
 fn lcg(seed: &mut u64) -> f32 {
@@ -191,5 +193,58 @@ fn sigreg_matches_lejepa_reference() {
     assert!(
         (stat - reference).abs() < 2e-4,
         "SIGReg deviates from lejepa reference: got {stat}, expected {reference}"
+    );
+}
+
+#[test]
+fn support_class_metrics_count_masks_and_average_zda_by_class() {
+    let mut strong = [0.0f32; EMB];
+    strong[1] = 1.0;
+    strong[2] = 1.0;
+    strong[3] = 1.0;
+
+    let mut ghost = [0.0f32; EMB];
+    ghost[1] = 1.0;
+    ghost[10] = 1.0;
+    ghost[11] = 1.0;
+
+    let mut bad = [0.0f32; EMB];
+    bad[1] = 1.0;
+    bad[2] = 1.0;
+    bad[4] = 1.0;
+
+    let metrics = support_class_metrics(&[strong, ghost, bad], 0.0);
+
+    assert_eq!(metrics.total, 3);
+    assert_eq!(metrics.strong, 1);
+    assert_eq!(metrics.ghost, 1);
+    assert_eq!(metrics.bad, 1);
+    assert_eq!(metrics.root_rank_hist[2], 2);
+    assert_eq!(metrics.strong_rate(), 1.0 / 3.0);
+    assert_eq!(metrics.ghost_rate(), 1.0 / 3.0);
+    assert_eq!(metrics.bad_rate(), 1.0 / 3.0);
+    assert!(metrics.mean_zda_strong.is_some());
+    assert!(metrics.mean_zda_ghost.is_some());
+    assert!(metrics.mean_zda_bad.is_some());
+}
+
+#[test]
+fn train_result_reports_support_metrics_for_test_embeddings() {
+    let data = generate(7, 3, 24, 12);
+    let weights = LossWeights {
+        inv: 25.0,
+        var: 0.0,
+        cov: 0.0,
+        zda: 0.0,
+        zda_auto: false,
+        sig: 0.0,
+    };
+
+    let result = train_and_eval(Encoder::new_sed(7), &data, &weights, 1, 0.01);
+
+    assert_eq!(result.support.total, data.test.len());
+    assert_eq!(
+        result.support.strong + result.support.ghost + result.support.bad,
+        data.test.len()
     );
 }

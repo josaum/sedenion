@@ -2,6 +2,7 @@
 
 use crate::data::EMB;
 use crate::linalg::{solve, sym_eigenvalues};
+use sedenion::{classify_triangular_support, Sedenion, TriangularSupport};
 
 /// Ridge linear probe: fit a linear classifier on `(train_emb, train_lab)` and
 /// return test accuracy. One-hot regression, argmax decode.
@@ -122,4 +123,79 @@ pub fn collapse_metrics(emb: &[[f32; EMB]]) -> Collapse {
         isotropy_dist: iso,
         min_std,
     }
+}
+
+pub struct SupportClassMetrics {
+    pub total: usize,
+    pub strong: usize,
+    pub ghost: usize,
+    pub bad: usize,
+    /// Root rank histogram for rooted supports. Indexes 1..4 are used.
+    pub root_rank_hist: [usize; 5],
+    pub mean_zda_strong: Option<f64>,
+    pub mean_zda_ghost: Option<f64>,
+    pub mean_zda_bad: Option<f64>,
+}
+
+impl SupportClassMetrics {
+    pub fn strong_rate(&self) -> f64 {
+        self.strong as f64 / self.total.max(1) as f64
+    }
+
+    pub fn ghost_rate(&self) -> f64 {
+        self.ghost as f64 / self.total.max(1) as f64
+    }
+
+    pub fn bad_rate(&self) -> f64 {
+        self.bad as f64 / self.total.max(1) as f64
+    }
+}
+
+pub fn support_class_metrics(emb: &[[f32; EMB]], threshold: f32) -> SupportClassMetrics {
+    let mut out = SupportClassMetrics {
+        total: emb.len(),
+        strong: 0,
+        ghost: 0,
+        bad: 0,
+        root_rank_hist: [0; 5],
+        mean_zda_strong: None,
+        mean_zda_ghost: None,
+        mean_zda_bad: None,
+    };
+    let mut strong_zda = 0.0f64;
+    let mut ghost_zda = 0.0f64;
+    let mut bad_zda = 0.0f64;
+
+    for row in emb {
+        let z = Sedenion::new(*row);
+        let score = z.zda_score() as f64;
+        match classify_triangular_support(z.support_mask(threshold)) {
+            TriangularSupport::Strong { root_mask } => {
+                out.strong += 1;
+                out.root_rank_hist[root_mask.count_ones() as usize] += 1;
+                strong_zda += score;
+            }
+            TriangularSupport::Ghost { root_mask } => {
+                out.ghost += 1;
+                out.root_rank_hist[root_mask.count_ones() as usize] += 1;
+                ghost_zda += score;
+            }
+            TriangularSupport::Bad => {
+                out.bad += 1;
+                bad_zda += score;
+            }
+        }
+    }
+
+    if out.strong > 0 {
+        out.mean_zda_strong = Some(strong_zda / out.strong as f64);
+    }
+    if out.ghost > 0 {
+        out.mean_zda_ghost = Some(ghost_zda / out.ghost as f64);
+    }
+    if out.bad > 0 {
+        out.mean_zda_bad = Some(bad_zda / out.bad as f64);
+    }
+
+    out
 }
