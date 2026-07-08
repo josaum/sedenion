@@ -520,6 +520,9 @@ pub struct DeepConfig {
     pub inv_w: f32,
     pub sig_w: f32,
     pub zda: bool,
+    /// Input-space jamming-noise std applied to the training views (0 = off).
+    /// Non-zero trains the encoder to be jam-robust (standard noise augmentation).
+    pub jam_train: f32,
 }
 
 impl Default for DeepConfig {
@@ -531,6 +534,7 @@ impl Default for DeepConfig {
             inv_w: 25.0,
             sig_w: 1.0,
             zda: false,
+            jam_train: 0.0,
         }
     }
 }
@@ -545,8 +549,40 @@ fn grad_rms(g: &[[f32; EMB]]) -> f32 {
     (ss / (g.len() * EMB).max(1) as f32).sqrt()
 }
 
-/// Minibatch Adam training of a deep arm, then evaluate with the shared metrics.
-pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfig) -> EvalResult {
+/// Broadband jamming levels (input-space additive-noise std) for the robustness
+/// curve. `0.0` is the clean baseline.
+pub const JAM_LEVELS: [f32; 5] = [0.0, 0.2, 0.4, 0.7, 1.0];
+/// Fixed seed so every arm is evaluated on identical jammed inputs.
+const JAM_SEED: u64 = 0x00A1_1_1A33;
+
+/// Standard normal sample (Box–Muller), for input-space jamming.
+fn jam_gauss(rng: &mut StdRng) -> f32 {
+    let u1: f32 = rng.gen::<f32>().max(1e-9);
+    let u2: f32 = rng.gen::<f32>();
+    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f32::consts::PI * u2).cos()
+}
+
+/// Jam one view with broadband additive noise of the given std.
+fn jam_view(v: &[f32; INPUT], sigma: f32, rng: &mut StdRng) -> [f32; INPUT] {
+    let mut out = *v;
+    if sigma > 0.0 {
+        for o in out.iter_mut() {
+            *o += sigma * jam_gauss(rng);
+        }
+    }
+    out
+}
+
+/// A trained deep arm's evaluation: the shared metrics plus the anti-jamming
+/// accuracy curve (one entry per `JAM_LEVELS`).
+pub struct DeepEval {
+    pub eval: EvalResult,
+    pub jam_acc: Vec<f64>,
+}
+
+/// Minibatch Adam training of a deep arm, then evaluate with the shared metrics
+/// and an anti-jamming robustness curve.
+pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfig) -> DeepEval {
     let n_params = enc.n_params();
     let mut rng = StdRng::seed_from_u64(0x5EED_0000 ^ n_params as u64);
     let n = data.train.len();
@@ -565,10 +601,19 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
             let mut z: Vec<[f32; EMB]> = Vec::with_capacity(chunk.len() * 2);
             let mut cache: Vec<Vec<Vec<f32>>> = Vec::with_capacity(chunk.len() * 2);
             for &si in chunk {
-                let (ea, ca) = enc.forward_cache(&data.train[si].view_a);
+                // Optionally jam the training views (robustness augmentation).
+                let (va, vb) = if cfg.jam_train > 0.0 {
+                    (
+                        jam_view(&data.train[si].view_a, cfg.jam_train, &mut rng),
+                        jam_view(&data.train[si].view_b, cfg.jam_train, &mut rng),
+                    )
+                } else {
+                    (data.train[si].view_a, data.train[si].view_b)
+                };
+                let (ea, ca) = enc.forward_cache(&va);
                 z.push(ea);
                 cache.push(ca);
-                let (eb, cb) = enc.forward_cache(&data.train[si].view_b);
+                let (eb, cb) = enc.forward_cache(&vb);
                 z.push(eb);
                 cache.push(cb);
             }
@@ -637,13 +682,39 @@ pub fn train_deep_and_eval(mut enc: DeepEncoder, data: &Dataset, cfg: &DeepConfi
     let gauss = gaussianity(&test_emb, 0xE7A1 ^ n_params as u64, 32);
     let support = support_class_metrics(&test_emb, 0.25);
 
-    EvalResult {
-        n_params,
-        final_loss,
-        probe_acc,
-        collapse,
-        gaussianity: gauss,
-        support,
+    // Anti-jamming curve: probe fit on CLEAN train embeddings, evaluated as the
+    // test inputs are jammed with increasing broadband noise. A fixed jam seed
+    // (independent of the arm) gives every arm the *same* corrupted inputs, so the
+    // comparison isolates the representation's robustness. Higher retention at a
+    // given jam level = a more jam-resistant code — the "SIGReg -> anti-jamming"
+    // hypothesis being tested here.
+    let mut jam_acc = Vec::with_capacity(JAM_LEVELS.len());
+    for &sigma in &JAM_LEVELS {
+        let mut jrng = StdRng::seed_from_u64(JAM_SEED);
+        let jammed: Vec<[f32; EMB]> = data
+            .test
+            .iter()
+            .map(|s| enc.forward(&jam_view(&s.view_a, sigma, &mut jrng)))
+            .collect();
+        jam_acc.push(linear_probe(
+            &train_emb,
+            &train_lab,
+            &jammed,
+            &test_lab,
+            data.n_classes,
+        ));
+    }
+
+    DeepEval {
+        eval: EvalResult {
+            n_params,
+            final_loss,
+            probe_acc,
+            collapse,
+            gaussianity: gauss,
+            support,
+        },
+        jam_acc,
     }
 }
 

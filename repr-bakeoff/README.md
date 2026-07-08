@@ -206,6 +206,46 @@ parameter efficiency, not a raw-accuracy win, and the two "novel" mechanisms
 (ZDA-Reg, learnable PHM) are the parts that fail to generalize past the shallow
 linear probe.**
 
+## Anti-jamming: does the SIGReg representation resist input jamming?
+
+The zero-divisor pitch has always carried an *anti-jamming* subtext (see
+`../nav-bakeoff`). This tests it directly: fit the linear probe on **clean**
+embeddings, then re-probe as the test inputs are corrupted with increasing
+broadband noise (σ). Every arm sees identical jammed inputs; `ret@max` is accuracy
+at σ=1.0 divided by clean accuracy. Run with `cargo run --release -- deep [mnist]`.
+
+| arm | ret@max (synthetic) | ret@max (MNIST) |
+|---|--:|--:|
+| Dense deep | **82.6%** | **79.9%** |
+| Sedenion deep (ZDA off) | 48.3% | 61.6% |
+| Sedenion deep (ZDA auto) | 60.2% | 65.4% |
+| PHM deep (learned alg) | 64.1% | 61.0% |
+
+**The result is a clean negative — the opposite of the anti-jamming pitch.** The
+dense arm is the *most* jam-robust on both datasets (~80% retention); every sedenion
+arm degrades far faster. The mechanism is exactly the isotropy the SIGReg objective
+rewards: a high-rank, near-isotropic code (eff_rank 9–14, min_std ≈ 0.03) spreads
+class signal across many low-variance axes that broadband noise swamps, while the
+dense arm's *collapse* to one high-variance, high-SNR direction (eff_rank 1–2) is
+what makes it robust. **Isotropy and jam-robustness pull in opposite directions.**
+
+Two honest sub-findings:
+
+- **ZDA does have a real, if small, anti-jamming effect** — *within* the sedenion
+  family it consistently improves retention (synthetic 48%→60%, MNIST 62%→65%). So
+  the zero-divisor barrier is not nothing; it just cannot overcome the structural
+  fragility, and it costs clean accuracy to buy that retention.
+- **Training explicitly for robustness does not rescue sedenion.** With
+  jam-augmented training (`cargo run --release -- deep robust`, σ=0.5 noise on the
+  training views), the *dense* arm improves most (synthetic retention 82.6%→87.3%,
+  clean accuracy 87%→92%), while the sedenion arms' retention barely moves
+  (~48–57%). The gap widens, it does not close.
+
+This **corroborates `nav-bakeoff`'s independent conclusion** that sedenion zero
+divisors are "blind directions to gate against, not anti-jamming sinks." Under the
+faithful SIGReg objective, a sedenion representation is *less* jam-resistant than a
+matched dense baseline — a negative worth stating plainly.
+
 ## Caveats (what this does *not* settle)
 
 - Frozen random backbone + a 16-D *unsupervised* bottleneck caps absolute accuracy

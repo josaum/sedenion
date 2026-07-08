@@ -163,8 +163,16 @@ fn print_metric_tables(names: &[&str], per_arm: &[Vec<Result>]) {
 
 /// Deep-arm runner: dense / sedenion(±ZDA) / PHM encoders, Adam + minibatches,
 /// same faithful SIGReg objective and metrics as `run`.
-fn run_deep(title: &str, n_classes: usize, seeds: u64, make_data: impl Fn(u64) -> Dataset) {
-    use repr_bakeoff::deep::{train_deep_and_eval, Arm as DeepArm, DeepConfig, DeepEncoder};
+fn run_deep(
+    title: &str,
+    n_classes: usize,
+    seeds: u64,
+    jam_train: f32,
+    make_data: impl Fn(u64) -> Dataset,
+) {
+    use repr_bakeoff::deep::{
+        train_deep_and_eval, Arm as DeepArm, DeepConfig, DeepEncoder, JAM_LEVELS,
+    };
 
     struct DArm {
         name: &'static str,
@@ -197,7 +205,7 @@ fn run_deep(title: &str, n_classes: usize, seeds: u64, make_data: impl Fn(u64) -
     let cfg = DeepConfig::default();
     println!("\n=== {title} ===");
     println!(
-        "seeds={seeds}  classes={n_classes}  epochs={}  batch={}  lr={}  (chance = {:.1}%)",
+        "seeds={seeds}  classes={n_classes}  epochs={}  batch={}  lr={}  jam_train={jam_train}  (chance = {:.1}%)",
         cfg.epochs,
         cfg.batch,
         cfg.lr,
@@ -206,25 +214,71 @@ fn run_deep(title: &str, n_classes: usize, seeds: u64, make_data: impl Fn(u64) -
     println!("arch: 256 -> 128 -> 64 -> 16 (SiLU between hidden layers, linear head)");
 
     let mut per_arm: Vec<Vec<Result>> = (0..arms.len()).map(|_| Vec::new()).collect();
+    let mut per_arm_jam: Vec<Vec<Vec<f64>>> = (0..arms.len()).map(|_| Vec::new()).collect();
     for seed in 0..seeds {
         let data = make_data(seed);
         for (ai, a) in arms.iter().enumerate() {
             let enc = DeepEncoder::new(a.arm, seed);
             let cfg = DeepConfig {
                 zda: a.zda,
+                jam_train,
                 ..DeepConfig::default()
             };
-            per_arm[ai].push(train_deep_and_eval(enc, &data, &cfg));
+            let de = train_deep_and_eval(enc, &data, &cfg);
+            per_arm[ai].push(de.eval);
+            per_arm_jam[ai].push(de.jam_acc);
         }
     }
     let names: Vec<&str> = arms.iter().map(|a| a.name).collect();
     print_metric_tables(&names, &per_arm);
+    print_jam_table(&names, &per_arm_jam, &JAM_LEVELS);
+}
+
+/// Print the anti-jamming curve: probe accuracy as the test inputs are jammed with
+/// increasing broadband noise, plus retention at the strongest jam level. Each cell
+/// is averaged over seeds; every arm saw identical jammed inputs.
+fn print_jam_table(names: &[&str], per_arm_jam: &[Vec<Vec<f64>>], levels: &[f32]) {
+    println!("\nanti-jamming: linear-probe accuracy vs. input jam noise (probe fit on clean)");
+    print!("{:<24}", "arm");
+    for s in levels {
+        print!("  σ={s:<5.2}");
+    }
+    println!("   ret@max");
+    for (ai, name) in names.iter().enumerate() {
+        let seeds = &per_arm_jam[ai];
+        let n = seeds.len().max(1) as f64;
+        // Mean accuracy at each jam level across seeds.
+        let mut mean = vec![0.0f64; levels.len()];
+        for run in seeds {
+            for (l, &acc) in run.iter().enumerate() {
+                mean[l] += acc / n;
+            }
+        }
+        print!("{name:<24}");
+        for acc in &mean {
+            print!("  {:>6.1}%", 100.0 * acc);
+        }
+        // Retention = accuracy at the strongest jam / clean accuracy.
+        let ret = if mean[0] > 1e-9 {
+            mean[mean.len() - 1] / mean[0]
+        } else {
+            0.0
+        };
+        println!("   {:>6.1}%", 100.0 * ret);
+    }
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let deep_mode = args.iter().any(|a| a == "deep");
     let mnist_mode = args.iter().any(|a| a == "mnist");
+    // `robust` trains all arms under input jamming (noise augmentation), then
+    // re-runs the anti-jamming curve — the fair test of jam-robustness.
+    let jam_train = if args.iter().any(|a| a == "robust") {
+        0.5
+    } else {
+        0.0
+    };
 
     match (deep_mode, mnist_mode) {
         (true, true) => {
@@ -233,13 +287,18 @@ fn main() {
                 "DEEP — MNIST (frozen random backbone 784→256)",
                 10,
                 3,
+                jam_train,
                 |seed| mnist::build(&raw, seed, 1200, 1200),
             );
         }
         (true, false) => {
-            run_deep("DEEP — SYNTHETIC 10-class two-view", 10, 4, |seed| {
-                generate(seed, 10, 400, 400)
-            });
+            run_deep(
+                "DEEP — SYNTHETIC 10-class two-view",
+                10,
+                4,
+                jam_train,
+                |seed| generate(seed, 10, 400, 400),
+            );
         }
         (false, true) => {
             let raw = mnist::load_raw("data");
