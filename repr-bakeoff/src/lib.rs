@@ -5,6 +5,7 @@
 //! `README.md`.
 
 pub mod data;
+pub mod deep;
 pub mod linalg;
 pub mod metrics;
 pub mod mnist;
