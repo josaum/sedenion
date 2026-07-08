@@ -171,36 +171,52 @@ fn run_deep(
     make_data: impl Fn(u64) -> Dataset,
 ) {
     use repr_bakeoff::deep::{
-        train_deep_and_eval, Arm as DeepArm, DeepConfig, DeepEncoder, JAM_LEVELS,
+        train_deep_and_eval, Arm as DeepArm, DeepConfig, DeepEncoder, JAM_LEVELS, WIDTHS_WIDE,
     };
 
     struct DArm {
         name: &'static str,
         arm: DeepArm,
         zda: bool,
+        wide: bool,
     }
-    let arms = [
+    let mut arms = vec![
         DArm {
             name: "Dense deep            ",
             arm: DeepArm::Dense,
             zda: false,
+            wide: false,
         },
         DArm {
             name: "Sedenion deep ZDA off ",
             arm: DeepArm::Sedenion,
             zda: false,
+            wide: false,
         },
         DArm {
             name: "Sedenion deep ZDA auto",
             arm: DeepArm::Sedenion,
             zda: true,
+            wide: false,
         },
         DArm {
             name: "PHM deep (learned alg)",
             arm: DeepArm::Phm,
             zda: true,
+            wide: false,
         },
     ];
+    // The capacity-matched wide sedenion arm is the anti-jamming test's fair
+    // comparison; only run it in `robust` mode (jam-augmented training) to keep
+    // the standard bake-off to four arms.
+    if jam_train > 0.0 {
+        arms.push(DArm {
+            name: "Sedenion WIDE ZDA auto",
+            arm: DeepArm::Sedenion,
+            zda: true,
+            wide: true,
+        });
+    }
 
     let cfg = DeepConfig::default();
     println!("\n=== {title} ===");
@@ -218,7 +234,11 @@ fn run_deep(
     for seed in 0..seeds {
         let data = make_data(seed);
         for (ai, a) in arms.iter().enumerate() {
-            let enc = DeepEncoder::new(a.arm, seed);
+            let enc = if a.wide {
+                DeepEncoder::new_with(a.arm, seed, &WIDTHS_WIDE)
+            } else {
+                DeepEncoder::new(a.arm, seed)
+            };
             let cfg = DeepConfig {
                 zda: a.zda,
                 jam_train,

@@ -171,11 +171,21 @@ pub enum Arm {
     Phm,
 }
 
-/// Channel widths (real dims) at each layer boundary; hidden layers get SiLU.
+/// Default channel widths (real dims) at each layer boundary; hidden layers get
+/// SiLU. `WIDE` roughly capacity-matches the sedenion/PHM arms to the dense arm.
 const WIDTHS: [usize; 4] = [INPUT, 128, 64, EMB];
+/// Wide sedenion widths — a ~6× capacity bump over the base sedenion arm (still
+/// well under the dense arm's cost), to separate structure from capacity in the
+/// anti-jamming test.
+pub const WIDTHS_WIDE: [usize; 4] = [INPUT, 512, 256, EMB];
 
 impl DeepEncoder {
     pub fn new(arm: Arm, seed: u64) -> Self {
+        Self::new_with(arm, seed, &WIDTHS)
+    }
+
+    /// Build an arm with explicit channel widths (each a multiple of 16).
+    pub fn new_with(arm: Arm, seed: u64, widths: &[usize]) -> Self {
         let mut s = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(0x51);
         let mut rnd = |scale: f32| {
             s = s
@@ -185,9 +195,9 @@ impl DeepEncoder {
         };
 
         let mut layers = Vec::new();
-        let n_layers = WIDTHS.len() - 1;
+        let n_layers = widths.len() - 1;
         for l in 0..n_layers {
-            let (din, dout) = (WIDTHS[l], WIDTHS[l + 1]);
+            let (din, dout) = (widths[l], widths[l + 1]);
             match arm {
                 Arm::Dense => {
                     // He-style scale for SiLU/linear.
@@ -215,7 +225,7 @@ impl DeepEncoder {
                 }
             }
             if l + 1 < n_layers {
-                layers.push(Layer::Silu { dim: WIDTHS[l + 1] });
+                layers.push(Layer::Silu { dim: widths[l + 1] });
             }
         }
 

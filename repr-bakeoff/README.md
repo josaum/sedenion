@@ -229,7 +229,7 @@ class signal across many low-variance axes that broadband noise swamps, while th
 dense arm's *collapse* to one high-variance, high-SNR direction (eff_rank 1–2) is
 what makes it robust. **Isotropy and jam-robustness pull in opposite directions.**
 
-Two honest sub-findings:
+Three honest sub-findings:
 
 - **ZDA does have a real, if small, anti-jamming effect** — *within* the sedenion
   family it consistently improves retention (synthetic 48%→60%, MNIST 62%→65%). So
@@ -238,13 +238,27 @@ Two honest sub-findings:
 - **Training explicitly for robustness does not rescue sedenion.** With
   jam-augmented training (`cargo run --release -- deep robust`, σ=0.5 noise on the
   training views), the *dense* arm improves most (synthetic retention 82.6%→87.3%,
-  clean accuracy 87%→92%), while the sedenion arms' retention barely moves
-  (~48–57%). The gap widens, it does not close.
+  clean accuracy 87%→92%), while the narrow sedenion arms' retention barely moves.
+  The gap widens, it does not close.
+- **Capacity was a confound for accuracy, but not for jamming.** `deep robust`
+  adds a **capacity-matched wide sedenion** arm (`WIDTHS_WIDE`, 17424 params — still
+  fewer than dense's 42192). With fair capacity the accuracy story flips *positive*:
+  wide sedenion **beats** dense on synthetic (92.3% vs 91.6%) and ties it on MNIST
+  (30.4% vs 32.6%) — so the earlier "sedenion trails dense" was largely a capacity
+  artifact, not structure. But its jam-**retention** (synthetic 65.3%, MNIST 66.2%)
+  still trails dense (87.3% / 76.9%). More capacity buys accuracy; it does not buy
+  jam-robustness.
 
-This **corroborates `nav-bakeoff`'s independent conclusion** that sedenion zero
-divisors are "blind directions to gate against, not anti-jamming sinks." Under the
-faithful SIGReg objective, a sedenion representation is *less* jam-resistant than a
-matched dense baseline — a negative worth stating plainly.
+The verdict, across depth, ZDA, learnable PHM, jam-augmented training, and
+capacity-matching: **a capacity-fair sedenion representation is competitive with —
+even better than — dense on clean accuracy at fewer parameters, but under the
+faithful SIGReg objective it is consistently *less* jam-resistant than dense.** The
+isotropy SIGReg rewards is structurally at odds with broadband-jamming robustness,
+and no lever tried here reverses that. This **corroborates `nav-bakeoff`'s**
+independent conclusion that sedenion zero divisors are "blind directions to gate
+against, not anti-jamming sinks." If jam-robustness is the goal, isotropy is the
+wrong objective — a low-rank, high-SNR code (which is what *collapse* buys the dense
+arm) is what resists jamming.
 
 ## Caveats (what this does *not* settle)
 
