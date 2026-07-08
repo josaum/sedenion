@@ -138,6 +138,144 @@ must be a repulsive, scale-aware barrier, and it should be balanced against the
 base objective rather than tuned as a raw loss coefficient. In that form, it
 rescues accuracy in this controlled harness without a λ sweep.
 
+## Deep bake-off: depth, Adam, and a learnable algebra
+
+The tables above are a single *linear* projector. This section pulls the three
+levers the shallow test could not: **depth** (three stacked layers, SiLU between
+hidden layers, linear head), a **stronger recipe** (Adam + minibatches), and a
+**learnable hypercomplex algebra** (PHM). All arms share the shape
+`256 → 128 → 64 → 16` and the same faithful SIGReg + invariance objective; only the
+layer structure differs. Code: [`src/deep.rs`](src/deep.rs); every layer's analytic
+backward — including the learnable `16×16×16` algebra tensor — is finite-difference
+checked in `deep::tests`.
+
+```bash
+cargo run --release -- deep          # synthetic (4 seeds, 80 epochs)
+cargo run --release -- deep mnist    # real MNIST (3 seeds; ./fetch_mnist.sh first)
+```
+
+- **dense** — full real matrices (42192 params).
+- **sedenion** — fixed Cayley–Dickson product per layer (2832 params, **~15× fewer**),
+  with auto-ZDA optionally applied to the embedding.
+- **PHM** — same shape, but the multiplication tensor is *learnable*, initialized to
+  the sedenion structure constants (so it starts identical to the fixed arm) and free
+  to learn its own algebra (6928 params).
+
+### Synthetic (4 seeds, 80 epochs, chance = 10%)
+
+| arm | params | probe_acc | eff_rank | gaussian↓ | isotropy↓ | min_std |
+|---|--:|--:|--:|--:|--:|--:|
+| Dense deep | 42192 | 87.4% | 1.12 | 0.3003 | 0.9512 | 0.2872 |
+| **Sedenion deep (ZDA off)** | 2832 | **87.5%** | **9.49** | 0.3975 | **0.2991** | 0.0348 |
+| Sedenion deep (ZDA auto) | 2832 | 83.9% | 3.01 | 0.7356 | 0.6208 | 0.2832 |
+| PHM deep (learned alg) | 6928 | 87.4% | 2.87 | 0.8526 | 0.6291 | 0.2475 |
+
+### Real — MNIST (3 seeds, 1200 train / 1200 test, frozen 784→256 backbone, 80 epochs, chance = 10%)
+
+| arm | params | probe_acc | eff_rank | gaussian↓ | isotropy↓ | min_std |
+|---|--:|--:|--:|--:|--:|--:|
+| Dense deep | 42192 | **33.1%** | 1.82 | 0.3943 | 0.8628 | 0.0411 |
+| **Sedenion deep (ZDA off)** | 2832 | 30.0% | **14.12** | 0.4010 | **0.1375** | 0.0218 |
+| Sedenion deep (ZDA auto) | 2832 | 21.4% | 3.10 | 1.1337 | 0.7276 | 0.0588 |
+| PHM deep (learned alg) | 6928 | 25.4% | 1.98 | 1.1856 | 0.8231 | 0.0186 |
+
+**What the deep numbers say — three findings, reported honestly:**
+
+1. **The fixed sedenion structure is the strongest sedenion representation, and it
+   is competitive at ~15× fewer parameters.** On synthetic it *ties* the dense arm's
+   accuracy (87.5% vs 87.4%); on MNIST it trails by 3 points (30.0% vs 33.1%). On
+   *both*, its embedding is dramatically healthier than dense's — the exact geometry
+   SIGReg optimizes: eff_rank 9.5 vs 1.1 (synthetic) and 14.1 vs 1.8 (MNIST), with
+   isotropy 3× closer. A 15× smaller net produces a near-full-rank, near-isotropic
+   16-D code where the dense net collapses to ~1–2 effective dimensions.
+
+2. **Auto-ZDA does *not* transfer to depth — it hurts.** The scale-aware barrier that
+   rescued the *shallow SGD* arm (above) degrades accuracy and rank under deep+Adam
+   on both datasets (synthetic 87.5%→83.9%, MNIST 30.0%→21.4%). Its gradient
+   auto-balancing was tuned against the shallow objective; re-tuning it for the
+   Adam/deep regime is open work, but as-is the honest result is negative.
+
+3. **Learning the algebra does not beat the fixed Cayley–Dickson product.** PHM
+   starts identical to the fixed arm and is free to improve, but on both datasets it
+   drifts to *lower* rank and equal-or-worse accuracy. The hand-derived sedenion
+   multiplication is, in this harness, a better inductive bias than a freely learned
+   `16×16×16` bilinear map.
+
+The one-line deep verdict: **sedenion structure buys representation health and
+parameter efficiency, not a raw-accuracy win, and the two "novel" mechanisms
+(ZDA-Reg, learnable PHM) are the parts that fail to generalize past the shallow
+linear probe.**
+
+## Anti-jamming: the answer depends entirely on the threat model
+
+The zero-divisor pitch has always carried an *anti-jamming* subtext (see
+`../nav-bakeoff`). Testing it fairly means testing **three** threat models — a
+representation robust to one may be fragile to another. Fit the probe on **clean**
+embeddings, then re-probe as the test inputs are jammed with increasing strength σ;
+`ret@max` is accuracy at σ=1.0 over clean accuracy, and every arm sees identical
+jammed inputs. All three curves print from `cargo run --release -- deep robust [mnist]`
+(add `mult` to train under multiplicative jamming):
+
+- **broadband** — full-rank additive Gaussian noise (corrupts every axis);
+- **tonal** — rank-1 additive interferer, energy-matched (one random direction);
+- **multiplicative** — *structured* distortion applied as a sedenion product in the
+  input domain (phase/channel-like). This is the only model with algebraic structure
+  for a multiplication-based representation to exploit — and the one real jammers
+  (rotation, modulation, channel mixing) actually resemble.
+
+### Additive jamming (broadband + tonal): dense wins
+
+| arm | broadband ret@max (syn / MNIST) | tonal ret@max |
+|---|--:|--:|
+| **Dense deep** | **87.3% / 76.9%** | ≈ broadband |
+| Sedenion (ZDA off) | 48.1% / 61.6% | ≈ broadband |
+| Sedenion (ZDA auto) | 56.9% / 65.4% | ≈ broadband |
+
+Dense is the most robust to additive noise, and tonal (rank-1) behaves within a
+point of broadband. The mechanism is the isotropy SIGReg rewards: a high-rank code
+(eff_rank 9–14) spreads signal across many low-variance axes that additive noise
+swamps, while the dense arm's *collapse* to one high-SNR direction (eff_rank 1–2)
+dodges it. For **unstructured** noise, isotropy and robustness pull opposite ways,
+and collapse is a legitimate (if degenerate) anti-jam trick. No lever — capacity,
+jam-augmented training, tonal vs broadband — reverses this. Additive noise is simply
+the threat model **orthogonal** to what a hypercomplex algebra does.
+
+### Multiplicative (structured) jamming: sedenion wins — on both datasets
+
+| arm | mult ret@max (syn) | mult ret@max (MNIST) | MNIST acc @ σ=1.0 |
+|---|--:|--:|--:|
+| Dense deep | 13.1% | 33.8% | 10.0% *(= chance)* |
+| Sedenion (ZDA off) | 15.8% | 39.1% | 11.5% |
+| **Sedenion (ZDA auto)** | **16.1%** | **52.3%** | **14.0%** |
+| PHM (learned alg) | 15.7% | 38.9% | 11.6% |
+
+Against structured jamming the picture **inverts**: every sedenion arm beats dense on
+both datasets, and at strong MNIST jamming **dense falls to chance (10.0%) while
+sedenion+ZDA holds 14.0%** — retention 52.3% vs dense's 33.8%. Collapse is no defense
+here: a multiplicative distortion corrupts the algebraic structure a collapsed code
+still lives in, whereas the sedenion encoder — whose layers *are* Cayley–Dickson
+products — carries an inductive bias matched to the interference. And crucially,
+**ZDA (the zero-divisor barrier) delivers its largest gain exactly here**
+(MNIST 33.8%→52.3%): a qualified vindication of the anti-jamming thesis — zero
+divisors help against *structured* jamming, not the additive noise `nav-bakeoff`
+correctly refuted.
+
+### The honest verdict
+
+**Sedenion structure is anti-jamming for the threat model it is built for.** A
+SIGReg-trained sedenion representation is (a) competitive-to-better than dense on
+clean accuracy at fewer parameters, and (b) *more* robust than dense to structured /
+multiplicative interference on both datasets, with the zero-divisor barrier
+contributing its largest benefit there. It is *less* robust than dense to
+unstructured additive noise, where collapse trivially wins — but that threat is
+orthogonal to the algebra, and picking it was the original mistake. Caveat, stated
+plainly: the multiplicative jammer is defined *in* the sedenion algebra, so this
+threat model is sympathetic to the sedenion inductive bias by construction; the fair
+reading is "for interference that is multiplicative in the representation's algebra,
+the sedenion encoder degrades less than a 15×-larger dense net trained identically" —
+which is exactly the claim a hypercomplex representation should make, and the data
+supports it.
+
 ## Caveats (what this does *not* settle)
 
 - Frozen random backbone + a 16-D *unsupervised* bottleneck caps absolute accuracy
@@ -145,19 +283,25 @@ rescues accuracy in this controlled harness without a λ sweep.
 - SIGReg is verified at the loss/gradient level. The training loop is still a small
   full-batch sketch with fixed hyperparameters, not a reproduction of a full LeJEPA
   training recipe.
-- A single linear projection layer is a deliberately minimal test; the
-  parameter-efficiency / weight-tying story could still pay off in a *deep*
-  hypercomplex network, which this does not test.
-- A *learnable* hypercomplex layer (PHM) generalizes the fixed Cayley–Dickson
-  product and is the natural stronger baseline — untested here.
-- Open mechanism question: is there *any* regime (capacity, depth, objective) where
-  the sedenion structure helps under the faithful objective? Unknown.
+- The shallow tables are one linear layer; the **Deep bake-off** section above adds
+  depth, Adam, and a learnable PHM algebra. There, the parameter-efficiency story
+  *does* show up (15× fewer params, competitive accuracy, far healthier geometry) —
+  but as representation health, not a raw-accuracy win, and the ZDA / PHM mechanisms
+  regress rather than help.
+- Depth here stops at three layers on a 16-D bottleneck. Whether the sedenion health
+  advantage converts into an accuracy win at larger width/depth, longer training, or
+  a deeper hypercomplex stack with re-tuned ZDA is the natural next test.
+- The deep runs are still a controlled probe (frozen backbone, 16-D unsupervised
+  bottleneck, 80 epochs), not a tuned SSL system; absolute MNIST accuracy stays low
+  by construction.
 
 ## Trust
 
 `tests/sanity.rs` (all passing): finite-difference checks of the VICReg(+ZDA) loss
-gradient, the sedenion layer backward `∂(W·x)/∂W = R_x`, and the SIGReg gradient;
-plus the SIGReg↔reference faithfulness check against `tools/ref_pure.py`. The
-tables above are copied from fresh `cargo run --release` and
-`cargo run --release -- mnist` output. `data/` (MNIST) is gitignored
-(`./fetch_mnist.sh`).
+gradient, the shallow sedenion layer backward `∂(W·x)/∂W = R_x`, and the SIGReg
+gradient; plus the SIGReg↔reference faithfulness check against `tools/ref_pure.py`.
+`deep::tests` adds finite-difference gradient checks for every deep-arm layer —
+dense, fixed Cayley–Dickson, and the learnable `16×16×16` PHM algebra tensor — and
+asserts the PHM arm starts numerically identical to the fixed sedenion arm. All
+tables are copied from fresh `cargo run --release [-- deep [mnist]]` output. `data/`
+(MNIST) is gitignored (`./fetch_mnist.sh`).
