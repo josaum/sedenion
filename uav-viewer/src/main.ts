@@ -1,6 +1,6 @@
-import './style.css';
-import { tableFromIPC, type Table, type Vector } from 'apache-arrow';
-import * as THREE from 'three';
+import "./style.css";
+import { tableFromIPC, type Table, type Vector } from "apache-arrow";
+import * as THREE from "three";
 
 type FlightColumns = {
   label: string;
@@ -29,9 +29,9 @@ type FlightColumns = {
   };
 };
 
-type CameraPreset = 'chase' | 'orbit' | 'top' | 'command';
-type LayerName = 'trajectory' | 'vectors' | 'airspace' | 'range';
-type MissionPhase = 'acquisition' | 'tracking' | 'assessment' | 'recovery';
+type CameraPreset = "chase" | "orbit" | "top" | "command";
+type LayerName = "trajectory" | "vectors" | "airspace" | "range";
+type MissionPhase = "acquisition" | "tracking" | "assessment" | "recovery";
 
 // Auto-fit transform: maps a flight's physical extent (meters) into a fixed
 // scene size so a 4 m indoor hop and a 400 m dead-reckon both frame well.
@@ -52,30 +52,37 @@ function toScene(px: number, py: number, pz: number): THREE.Vector3 {
   );
 }
 
-const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
-const app = document.querySelector<HTMLDivElement>('#app')!;
-const stats = document.querySelector<HTMLDivElement>('#stats')!;
-const readout = document.querySelector<HTMLDivElement>('#readout')!;
-const drop = document.querySelector<HTMLDivElement>('#drop')!;
-const instrument = document.querySelector<HTMLDivElement>('#instrument')!;
-const missionPhase = document.querySelector<HTMLParagraphElement>('#missionPhase')!;
-const hudPhase = document.querySelector<HTMLElement>('#hudPhase')!;
-const hudSpeed = document.querySelector<HTMLElement>('#hudSpeed')!;
-const hudAlt = document.querySelector<HTMLElement>('#hudAlt')!;
-const hudDrift = document.querySelector<HTMLElement>('#hudDrift')!;
-const hudLink = document.querySelector<HTMLElement>('#hudLink')!;
-const playPause = document.querySelector<HTMLButtonElement>('#playPause')!;
-const presentationMode = document.querySelector<HTMLButtonElement>('#presentationMode')!;
-const speedInput = document.querySelector<HTMLInputElement>('#speed')!;
-const playbackRate = document.querySelector<HTMLOutputElement>('#playbackRate')!;
-const scrubInput = document.querySelector<HTMLInputElement>('#scrub')!;
-const cameraButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-camera]'));
-const layerButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-layer]'));
+const canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
+const app = document.querySelector<HTMLDivElement>("#app")!;
+const stats = document.querySelector<HTMLDivElement>("#stats")!;
+const readout = document.querySelector<HTMLDivElement>("#readout")!;
+const drop = document.querySelector<HTMLDivElement>("#drop")!;
+const instrument = document.querySelector<HTMLDivElement>("#instrument")!;
+const missionPhase =
+  document.querySelector<HTMLParagraphElement>("#missionPhase")!;
+const hudPhase = document.querySelector<HTMLElement>("#hudPhase")!;
+const hudSpeed = document.querySelector<HTMLElement>("#hudSpeed")!;
+const hudAlt = document.querySelector<HTMLElement>("#hudAlt")!;
+const hudDrift = document.querySelector<HTMLElement>("#hudDrift")!;
+const hudLink = document.querySelector<HTMLElement>("#hudLink")!;
+const playPause = document.querySelector<HTMLButtonElement>("#playPause")!;
+const presentationMode =
+  document.querySelector<HTMLButtonElement>("#presentationMode")!;
+const speedInput = document.querySelector<HTMLInputElement>("#speed")!;
+const playbackRate =
+  document.querySelector<HTMLOutputElement>("#playbackRate")!;
+const scrubInput = document.querySelector<HTMLInputElement>("#scrub")!;
+const cameraButtons = Array.from(
+  document.querySelectorAll<HTMLButtonElement>("[data-camera]"),
+);
+const layerButtons = Array.from(
+  document.querySelectorAll<HTMLButtonElement>("[data-layer]"),
+);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
-  powerPreference: 'high-performance',
+  powerPreference: "high-performance",
   preserveDrawingBuffer: true,
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -112,7 +119,11 @@ world.add(grid);
 
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(580, 580),
-  new THREE.MeshStandardMaterial({ color: 0x818c63, roughness: 0.94, metalness: 0.02 }),
+  new THREE.MeshStandardMaterial({
+    color: 0x818c63,
+    roughness: 0.94,
+    metalness: 0.02,
+  }),
 );
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.08;
@@ -130,7 +141,11 @@ scene.add(drone);
 
 const ghost = new THREE.Mesh(
   new THREE.SphereGeometry(1.1, 16, 8),
-  new THREE.MeshBasicMaterial({ color: 0x67d3ba, transparent: true, opacity: 0.32 }),
+  new THREE.MeshBasicMaterial({
+    color: 0x67d3ba,
+    transparent: true,
+    opacity: 0.32,
+  }),
 );
 scene.add(ghost);
 const altitudeLine = makeVectorLine(0x9af7df, 0.38);
@@ -147,7 +162,7 @@ let endMarker: THREE.Object3D | null = null;
 let current: FlightColumns | null = null;
 let cursor = 0;
 let playing = true;
-let cameraPreset: CameraPreset = 'orbit';
+let cameraPreset: CameraPreset = "orbit";
 let lastFrame = performance.now();
 let orbitYaw = -0.95;
 let orbitPitch = 0.32;
@@ -164,29 +179,39 @@ const layerState: Record<LayerName, boolean> = {
 
 function makeSky(): THREE.Group {
   const g = new THREE.Group();
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = 32;
   canvas.height = 512;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext("2d")!;
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, '#d3f0ff');
-  gradient.addColorStop(0.24, '#a7d8f1');
-  gradient.addColorStop(0.6, '#b8d7c4');
-  gradient.addColorStop(1, '#efdca3');
+  gradient.addColorStop(0, "#d3f0ff");
+  gradient.addColorStop(0.24, "#a7d8f1");
+  gradient.addColorStop(0.6, "#b8d7c4");
+  gradient.addColorStop(1, "#efdca3");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(900, 32, 16),
-    new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, fog: false }),
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.BackSide,
+      fog: false,
+    }),
   );
   mesh.position.y = -80;
   g.add(mesh);
 
   const sun = new THREE.Mesh(
     new THREE.CircleGeometry(38, 48),
-    new THREE.MeshBasicMaterial({ color: 0xfff4cc, transparent: true, opacity: 1, fog: false, depthWrite: false }),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff4cc,
+      transparent: true,
+      opacity: 1,
+      fog: false,
+      depthWrite: false,
+    }),
   );
   sun.position.set(-250, 210, -520);
   sun.rotation.y = 0.48;
@@ -194,7 +219,13 @@ function makeSky(): THREE.Group {
 
   const sunHalo = new THREE.Mesh(
     new THREE.CircleGeometry(134, 48),
-    new THREE.MeshBasicMaterial({ color: 0xffe7ad, transparent: true, opacity: 0.2, fog: false, depthWrite: false }),
+    new THREE.MeshBasicMaterial({
+      color: 0xffe7ad,
+      transparent: true,
+      opacity: 0.2,
+      fog: false,
+      depthWrite: false,
+    }),
   );
   sunHalo.position.copy(sun.position);
   sunHalo.rotation.copy(sun.rotation);
@@ -211,18 +242,18 @@ function makeSky(): THREE.Group {
 function makeHorizonGlow(): THREE.Group {
   const g = new THREE.Group();
   const warm = makeVerticalFadePlane(1040, 92, [
-    [0, 'rgba(255, 224, 155, 0)'],
-    [0.42, 'rgba(255, 216, 128, 0.2)'],
-    [1, 'rgba(255, 216, 128, 0)'],
+    [0, "rgba(255, 224, 155, 0)"],
+    [0.42, "rgba(255, 216, 128, 0.2)"],
+    [1, "rgba(255, 216, 128, 0)"],
   ]);
   warm.position.set(-60, 34, -520);
   warm.rotation.x = -0.08;
   g.add(warm);
 
   const cool = makeVerticalFadePlane(1040, 120, [
-    [0, 'rgba(192, 242, 246, 0)'],
-    [0.5, 'rgba(192, 242, 246, 0.16)'],
-    [1, 'rgba(192, 242, 246, 0)'],
+    [0, "rgba(192, 242, 246, 0)"],
+    [0.5, "rgba(192, 242, 246, 0.16)"],
+    [1, "rgba(192, 242, 246, 0)"],
   ]);
   cool.position.set(80, 62, -540);
   cool.rotation.x = -0.08;
@@ -230,7 +261,14 @@ function makeHorizonGlow(): THREE.Group {
 
   const line = new THREE.Mesh(
     new THREE.PlaneGeometry(1080, 2.2),
-    new THREE.MeshBasicMaterial({ color: 0xfff1ba, transparent: true, opacity: 0.2, fog: false, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff1ba,
+      transparent: true,
+      opacity: 0.2,
+      fog: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
   );
   line.position.set(0, 25, -515);
   line.rotation.x = -0.08;
@@ -238,11 +276,15 @@ function makeHorizonGlow(): THREE.Group {
   return g;
 }
 
-function makeVerticalFadePlane(width: number, height: number, stops: Array<[number, string]>): THREE.Mesh {
-  const canvas = document.createElement('canvas');
+function makeVerticalFadePlane(
+  width: number,
+  height: number,
+  stops: Array<[number, string]>,
+): THREE.Mesh {
+  const canvas = document.createElement("canvas");
   canvas.width = 8;
   canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext("2d")!;
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
   for (const [offset, color] of stops) gradient.addColorStop(offset, color);
   ctx.fillStyle = gradient;
@@ -251,7 +293,13 @@ function makeVerticalFadePlane(width: number, height: number, stops: Array<[numb
   texture.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(width, height),
-    new THREE.MeshBasicMaterial({ map: texture, transparent: true, fog: false, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      fog: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
   );
   mesh.renderOrder = -10;
   return mesh;
@@ -261,8 +309,22 @@ function makeDistantHorizon(): THREE.Group {
   const g = new THREE.Group();
   const rng = mulberry32(6104);
   const mats = [
-    new THREE.MeshBasicMaterial({ color: 0x55725d, transparent: true, opacity: 0.48, fog: false, depthWrite: false, side: THREE.DoubleSide }),
-    new THREE.MeshBasicMaterial({ color: 0x7f9578, transparent: true, opacity: 0.34, fog: false, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({
+      color: 0x55725d,
+      transparent: true,
+      opacity: 0.48,
+      fog: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+    new THREE.MeshBasicMaterial({
+      color: 0x7f9578,
+      transparent: true,
+      opacity: 0.34,
+      fog: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
   ];
   for (let layer = 0; layer < 2; layer++) {
     const points: THREE.Vector2[] = [new THREE.Vector2(-520, -12)];
@@ -272,7 +334,10 @@ function makeDistantHorizon(): THREE.Group {
       points.push(new THREE.Vector2(x, y));
     }
     points.push(new THREE.Vector2(520, -12));
-    const ridge = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(points)), mats[layer]);
+    const ridge = new THREE.Mesh(
+      new THREE.ShapeGeometry(new THREE.Shape(points)),
+      mats[layer],
+    );
     ridge.position.set(0, 10 + layer * 6, -560 - layer * 42);
     g.add(ridge);
   }
@@ -283,13 +348,32 @@ function makeCloudBank(): THREE.Group {
   const g = new THREE.Group();
   const rng = mulberry32(4229);
   const mats = [
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, fog: false, depthWrite: false }),
-    new THREE.MeshBasicMaterial({ color: 0xe2f3f6, transparent: true, opacity: 0.16, fog: false, depthWrite: false }),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.28,
+      fog: false,
+      depthWrite: false,
+    }),
+    new THREE.MeshBasicMaterial({
+      color: 0xe2f3f6,
+      transparent: true,
+      opacity: 0.16,
+      fog: false,
+      depthWrite: false,
+    }),
   ];
   for (let i = 0; i < 30; i++) {
     const high = i % 3 === 0;
-    const cloud = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 6), high ? mats[1] : mats[0]);
-    cloud.position.set(-430 + rng() * 860, 98 + rng() * (high ? 150 : 70), -460 + rng() * 180);
+    const cloud = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 12, 6),
+      high ? mats[1] : mats[0],
+    );
+    cloud.position.set(
+      -430 + rng() * 860,
+      98 + rng() * (high ? 150 : 70),
+      -460 + rng() * 180,
+    );
     cloud.scale.set(22 + rng() * 74, 2.6 + rng() * 7, 7 + rng() * 24);
     cloud.rotation.y = rng() * Math.PI;
     g.add(cloud);
@@ -299,7 +383,12 @@ function makeCloudBank(): THREE.Group {
 
 function makeContrails(): THREE.Group {
   const g = new THREE.Group();
-  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.36, fog: false });
+  const mat = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.36,
+    fog: false,
+  });
   const rng = mulberry32(8181);
   for (let i = 0; i < 7; i++) {
     const y = 125 + rng() * 185;
@@ -312,7 +401,10 @@ function makeContrails(): THREE.Group {
       new THREE.Vector3(x + length * 0.5, y + rise * 0.45, z - 18 - rng() * 28),
       new THREE.Vector3(x + length, y + rise, z - 34 - rng() * 36),
     ];
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), mat);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      mat,
+    );
     line.rotation.y = -0.18 + rng() * 0.36;
     g.add(line);
   }
@@ -324,8 +416,22 @@ function makeAtmosphereBands(): THREE.Group {
   const colors = [0xc7f3ff, 0xffd37a, 0xffffff];
   for (let i = 0; i < 3; i++) {
     const band = new THREE.Mesh(
-      new THREE.RingGeometry(520 + i * 38, 522 + i * 38, 96, 1, Math.PI * 0.08, Math.PI * 0.84),
-      new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.045 - i * 0.007, fog: false, depthWrite: false, side: THREE.DoubleSide }),
+      new THREE.RingGeometry(
+        520 + i * 38,
+        522 + i * 38,
+        96,
+        1,
+        Math.PI * 0.08,
+        Math.PI * 0.84,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: colors[i],
+        transparent: true,
+        opacity: 0.045 - i * 0.007,
+        fog: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
     );
     band.position.set(-80 + i * 70, 64 + i * 24, -560);
     band.rotation.x = Math.PI * 0.5;
@@ -347,36 +453,67 @@ function makeStarField(): THREE.Points {
     positions[i * 3 + 2] = Math.sin(theta) * radius;
   }
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   return new THREE.Points(
     geo,
-    new THREE.PointsMaterial({ color: 0xdafff4, size: 1.2, transparent: true, opacity: 0.24, fog: false, depthWrite: false }),
+    new THREE.PointsMaterial({
+      color: 0xdafff4,
+      size: 1.2,
+      transparent: true,
+      opacity: 0.24,
+      fog: false,
+      depthWrite: false,
+    }),
   );
 }
 
 function makeAirspace(): THREE.Group {
   const g = new THREE.Group();
-  const padMat = new THREE.MeshStandardMaterial({ color: 0x2f3b32, roughness: 0.8, metalness: 0.02 });
+  const padMat = new THREE.MeshStandardMaterial({
+    color: 0x2f3b32,
+    roughness: 0.8,
+    metalness: 0.02,
+  });
   const pad = new THREE.Mesh(new THREE.RingGeometry(8, 10.5, 64), padMat);
   pad.rotation.x = -Math.PI / 2;
   pad.position.y = 0.03;
   g.add(pad);
 
-  const lineMat = new THREE.LineBasicMaterial({ color: 0xd7ad55, transparent: true, opacity: 0.42 });
+  const lineMat = new THREE.LineBasicMaterial({
+    color: 0xd7ad55,
+    transparent: true,
+    opacity: 0.42,
+  });
   for (const radius of [35, 70, 105, 140]) {
     const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, Math.PI * 2);
-    const points = curve.getPoints(128).map((p) => new THREE.Vector3(p.x, 0.04, p.y));
-    g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), lineMat));
+    const points = curve
+      .getPoints(128)
+      .map((p) => new THREE.Vector3(p.x, 0.04, p.y));
+    g.add(
+      new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(points),
+        lineMat,
+      ),
+    );
   }
 
-  const mastMat = new THREE.LineBasicMaterial({ color: 0x6fd8c5, transparent: true, opacity: 0.28 });
+  const mastMat = new THREE.LineBasicMaterial({
+    color: 0x6fd8c5,
+    transparent: true,
+    opacity: 0.28,
+  });
   const mastGeo = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(0, 0, 0),
     new THREE.Vector3(0, 90, 0),
   ]);
   g.add(new THREE.Line(mastGeo, mastMat));
 
-  const runwayMat = new THREE.MeshBasicMaterial({ color: 0xd7ad55, transparent: true, opacity: 0.12, depthWrite: false });
+  const runwayMat = new THREE.MeshBasicMaterial({
+    color: 0xd7ad55,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+  });
   const runway = new THREE.Mesh(new THREE.PlaneGeometry(8, 180), runwayMat);
   runway.rotation.x = -Math.PI / 2;
   runway.rotation.z = Math.PI / 5;
@@ -422,7 +559,11 @@ function makeFieldBands(): THREE.Group {
     g.add(mesh);
   }
 
-  const rowMat = new THREE.LineBasicMaterial({ color: 0xa4b59f, transparent: true, opacity: 0.12 });
+  const rowMat = new THREE.LineBasicMaterial({
+    color: 0xa4b59f,
+    transparent: true,
+    opacity: 0.12,
+  });
   for (let x = -220; x <= 235; x += 22) {
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
@@ -442,21 +583,38 @@ function makeRunwayDeck(): THREE.Group {
 
   const runway = new THREE.Mesh(
     new THREE.PlaneGeometry(18, 190),
-    new THREE.MeshStandardMaterial({ color: 0x1d2321, roughness: 0.86, metalness: 0.03 }),
+    new THREE.MeshStandardMaterial({
+      color: 0x1d2321,
+      roughness: 0.86,
+      metalness: 0.03,
+    }),
   );
   runway.rotation.x = -Math.PI / 2;
   runway.position.y = -0.03;
   g.add(runway);
 
-  const shoulderMat = new THREE.MeshBasicMaterial({ color: 0xb8c5b7, transparent: true, opacity: 0.08, depthWrite: false });
+  const shoulderMat = new THREE.MeshBasicMaterial({
+    color: 0xb8c5b7,
+    transparent: true,
+    opacity: 0.08,
+    depthWrite: false,
+  });
   for (const x of [-11.4, 11.4]) {
-    const shoulder = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 176), shoulderMat);
+    const shoulder = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.6, 176),
+      shoulderMat,
+    );
     shoulder.rotation.x = -Math.PI / 2;
     shoulder.position.set(x, 0.015, 0);
     g.add(shoulder);
   }
 
-  const markingMat = new THREE.MeshBasicMaterial({ color: 0xf1e6ca, transparent: true, opacity: 0.72, depthWrite: false });
+  const markingMat = new THREE.MeshBasicMaterial({
+    color: 0xf1e6ca,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  });
   for (let z = -70; z <= 70; z += 28) {
     const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 10), markingMat);
     dash.rotation.x = -Math.PI / 2;
@@ -472,10 +630,17 @@ function makeRunwayDeck(): THREE.Group {
     }
   }
 
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0x77ead1, transparent: true, opacity: 0.78 });
+  const lightMat = new THREE.MeshBasicMaterial({
+    color: 0x77ead1,
+    transparent: true,
+    opacity: 0.78,
+  });
   for (let z = -88; z <= 88; z += 16) {
     for (const x of [-10.2, 10.2]) {
-      const light = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.18, 0.42), lightMat);
+      const light = new THREE.Mesh(
+        new THREE.BoxGeometry(0.42, 0.18, 0.42),
+        lightMat,
+      );
       light.position.set(x, 0.12, z);
       g.add(light);
     }
@@ -483,7 +648,11 @@ function makeRunwayDeck(): THREE.Group {
 
   const apron = new THREE.Mesh(
     new THREE.PlaneGeometry(46, 32),
-    new THREE.MeshStandardMaterial({ color: 0x242a28, roughness: 0.88, metalness: 0.02 }),
+    new THREE.MeshStandardMaterial({
+      color: 0x242a28,
+      roughness: 0.88,
+      metalness: 0.02,
+    }),
   );
   apron.rotation.x = -Math.PI / 2;
   apron.position.set(-42, -0.025, -62);
@@ -498,9 +667,20 @@ function makeHangars(): THREE.Group {
   g.add(makeHangar(-35, -77, 14, 16, 4.8, 0x352f29, 0x685f4f));
   g.add(makeHangar(-63, -46, 12, 12, 4.4, 0x26383a, 0x4d6562));
 
-  const vehicleMat = new THREE.MeshStandardMaterial({ color: 0xd7ad55, roughness: 0.48, metalness: 0.08 });
-  for (const [x, z] of [[-35, -54], [-49, -55], [-58, -33]] as const) {
-    const vehicle = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.3, 2.1), vehicleMat);
+  const vehicleMat = new THREE.MeshStandardMaterial({
+    color: 0xd7ad55,
+    roughness: 0.48,
+    metalness: 0.08,
+  });
+  for (const [x, z] of [
+    [-35, -54],
+    [-49, -55],
+    [-58, -33],
+  ] as const) {
+    const vehicle = new THREE.Mesh(
+      new THREE.BoxGeometry(3.8, 1.3, 2.1),
+      vehicleMat,
+    );
     vehicle.position.set(x, 0.72, z);
     g.add(vehicle);
   }
@@ -519,19 +699,38 @@ function makeHangar(
   const g = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(width, height, depth),
-    new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.72, metalness: 0.08 }),
+    new THREE.MeshStandardMaterial({
+      color: wallColor,
+      roughness: 0.72,
+      metalness: 0.08,
+    }),
   );
   body.position.y = height * 0.5;
   const roof = new THREE.Mesh(
-    new THREE.CylinderGeometry(width * 0.58, width * 0.58, depth + 1.2, 3, 1, false),
-    new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.64, metalness: 0.12 }),
+    new THREE.CylinderGeometry(
+      width * 0.58,
+      width * 0.58,
+      depth + 1.2,
+      3,
+      1,
+      false,
+    ),
+    new THREE.MeshStandardMaterial({
+      color: roofColor,
+      roughness: 0.64,
+      metalness: 0.12,
+    }),
   );
   roof.rotation.x = Math.PI / 2;
   roof.rotation.z = Math.PI / 2;
   roof.position.y = height + 1.15;
   const door = new THREE.Mesh(
     new THREE.PlaneGeometry(width * 0.58, height * 0.58),
-    new THREE.MeshBasicMaterial({ color: 0x151a19, transparent: true, opacity: 0.72 }),
+    new THREE.MeshBasicMaterial({
+      color: 0x151a19,
+      transparent: true,
+      opacity: 0.72,
+    }),
   );
   door.position.set(0, height * 0.42, depth * 0.505);
   g.add(body, roof, door);
@@ -543,9 +742,21 @@ function makeOperationsCluster(): THREE.Group {
   const g = new THREE.Group();
   g.rotation.y = -Math.PI / 5;
 
-  const towerMat = new THREE.MeshStandardMaterial({ color: 0x283638, roughness: 0.68, metalness: 0.12 });
-  const glassMat = new THREE.MeshBasicMaterial({ color: 0x8ff4dc, transparent: true, opacity: 0.26 });
-  const consoleMat = new THREE.MeshBasicMaterial({ color: 0xd7ad55, transparent: true, opacity: 0.46 });
+  const towerMat = new THREE.MeshStandardMaterial({
+    color: 0x283638,
+    roughness: 0.68,
+    metalness: 0.12,
+  });
+  const glassMat = new THREE.MeshBasicMaterial({
+    color: 0x8ff4dc,
+    transparent: true,
+    opacity: 0.26,
+  });
+  const consoleMat = new THREE.MeshBasicMaterial({
+    color: 0xd7ad55,
+    transparent: true,
+    opacity: 0.46,
+  });
 
   const shaft = new THREE.Mesh(new THREE.BoxGeometry(5.4, 16, 5.4), towerMat);
   shaft.position.set(-86, 8, -34);
@@ -558,19 +769,34 @@ function makeOperationsCluster(): THREE.Group {
       new THREE.Vector3(-86, 21.8, -34),
       new THREE.Vector3(-86, 34, -34),
     ]),
-    new THREE.LineBasicMaterial({ color: 0xb9d6ca, transparent: true, opacity: 0.52 }),
+    new THREE.LineBasicMaterial({
+      color: 0xb9d6ca,
+      transparent: true,
+      opacity: 0.52,
+    }),
   );
   g.add(shaft, cab, glass, antenna);
 
   for (let i = 0; i < 4; i++) {
-    const console = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 1.6), consoleMat);
+    const console = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.8, 1.6),
+      consoleMat,
+    );
     console.rotation.x = -Math.PI / 2;
     console.position.set(-104 + i * 7.5, 0.08, -23);
     g.add(console);
   }
 
-  const briefingMat = new THREE.MeshBasicMaterial({ color: 0x111716, transparent: true, opacity: 0.72 });
-  const screenMat = new THREE.MeshBasicMaterial({ color: 0x75efd4, transparent: true, opacity: 0.2 });
+  const briefingMat = new THREE.MeshBasicMaterial({
+    color: 0x111716,
+    transparent: true,
+    opacity: 0.72,
+  });
+  const screenMat = new THREE.MeshBasicMaterial({
+    color: 0x75efd4,
+    transparent: true,
+    opacity: 0.2,
+  });
   for (let i = 0; i < 3; i++) {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 7, 9), briefingMat);
     wall.position.set(-112 + i * 10, 3.5, -14);
@@ -584,18 +810,46 @@ function makeOperationsCluster(): THREE.Group {
 
 function makeSensorArray(): THREE.Group {
   const g = new THREE.Group();
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x252f2f, roughness: 0.72, metalness: 0.14 });
-  const panelMat = new THREE.MeshStandardMaterial({ color: 0x47585b, roughness: 0.55, metalness: 0.18 });
-  const dishMat = new THREE.MeshStandardMaterial({ color: 0x61706e, roughness: 0.5, metalness: 0.16, side: THREE.DoubleSide });
-  const sweepMat = new THREE.MeshBasicMaterial({ color: 0x73efd3, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: 0x252f2f,
+    roughness: 0.72,
+    metalness: 0.14,
+  });
+  const panelMat = new THREE.MeshStandardMaterial({
+    color: 0x47585b,
+    roughness: 0.55,
+    metalness: 0.18,
+  });
+  const dishMat = new THREE.MeshStandardMaterial({
+    color: 0x61706e,
+    roughness: 0.5,
+    metalness: 0.16,
+    side: THREE.DoubleSide,
+  });
+  const sweepMat = new THREE.MeshBasicMaterial({
+    color: 0x73efd3,
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
 
-  const radarBase = new THREE.Mesh(new THREE.CylinderGeometry(5.8, 7.6, 3.2, 28), baseMat);
+  const radarBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(5.8, 7.6, 3.2, 28),
+    baseMat,
+  );
   radarBase.position.set(88, 1.6, -72);
-  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.2, 9.5, 18), baseMat);
+  const pedestal = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.6, 2.2, 9.5, 18),
+    baseMat,
+  );
   pedestal.position.set(88, 7.7, -72);
   const dishPivot = new THREE.Group();
   dishPivot.position.set(88, 14.2, -72);
-  const dish = new THREE.Mesh(new THREE.SphereGeometry(7.2, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.44), dishMat);
+  const dish = new THREE.Mesh(
+    new THREE.SphereGeometry(7.2, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.44),
+    dishMat,
+  );
   dish.rotation.x = Math.PI * 0.5;
   dish.rotation.z = -0.28;
   dish.scale.z = 0.42;
@@ -603,7 +857,10 @@ function makeSensorArray(): THREE.Group {
   animatedScenery.push(dishPivot);
   g.add(radarBase, pedestal, dishPivot);
 
-  const sweep = new THREE.Mesh(new THREE.CircleGeometry(96, 64, 0, Math.PI * 0.38), sweepMat);
+  const sweep = new THREE.Mesh(
+    new THREE.CircleGeometry(96, 64, 0, Math.PI * 0.38),
+    sweepMat,
+  );
   sweep.rotation.x = -Math.PI / 2;
   sweep.position.set(88, 0.07, -72);
   animatedScenery.push(sweep);
@@ -611,7 +868,12 @@ function makeSensorArray(): THREE.Group {
 
   const radome = new THREE.Mesh(
     new THREE.SphereGeometry(11, 28, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
-    new THREE.MeshBasicMaterial({ color: 0x9ff6e4, transparent: true, opacity: 0.08, depthWrite: false }),
+    new THREE.MeshBasicMaterial({
+      color: 0x9ff6e4,
+      transparent: true,
+      opacity: 0.08,
+      depthWrite: false,
+    }),
   );
   radome.position.set(127, 0, -45);
   g.add(radome);
@@ -629,9 +891,21 @@ function makeSensorArray(): THREE.Group {
 
 function makePerimeter(): THREE.Group {
   const g = new THREE.Group();
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x46514e, roughness: 0.76, metalness: 0.12 });
-  const wireMat = new THREE.LineBasicMaterial({ color: 0x9eb5ad, transparent: true, opacity: 0.2 });
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0x73efd3, transparent: true, opacity: 0.78 });
+  const postMat = new THREE.MeshStandardMaterial({
+    color: 0x46514e,
+    roughness: 0.76,
+    metalness: 0.12,
+  });
+  const wireMat = new THREE.LineBasicMaterial({
+    color: 0x9eb5ad,
+    transparent: true,
+    opacity: 0.2,
+  });
+  const lightMat = new THREE.MeshBasicMaterial({
+    color: 0x73efd3,
+    transparent: true,
+    opacity: 0.78,
+  });
   const points = [
     new THREE.Vector3(-150, 0.1, -125),
     new THREE.Vector3(155, 0.1, -125),
@@ -646,20 +920,31 @@ function makePerimeter(): THREE.Group {
     for (let j = 0; j <= posts; j++) {
       const t = j / posts;
       const p = a.clone().lerp(b, t);
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 2.2, 6), postMat);
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.22, 2.2, 6),
+        postMat,
+      );
       post.position.set(p.x, 1.1, p.z);
       g.add(post);
       if (j % 4 === 0) {
-        const beacon = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.5), lightMat);
+        const beacon = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 0.18, 0.5),
+          lightMat,
+        );
         beacon.position.set(p.x, 2.36, p.z);
         g.add(beacon);
       }
     }
     for (const y of [1.0, 1.7]) {
-      g.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.x, y, a.z), new THREE.Vector3(b.x, y, b.z)]),
-        wireMat,
-      ));
+      g.add(
+        new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(a.x, y, a.z),
+            new THREE.Vector3(b.x, y, b.z),
+          ]),
+          wireMat,
+        ),
+      );
     }
   }
   return g;
@@ -667,14 +952,30 @@ function makePerimeter(): THREE.Group {
 
 function makeSearchlightFan(): THREE.Group {
   const g = new THREE.Group();
-  const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, opacity: 0.018, depthWrite: false, side: THREE.DoubleSide });
-  for (const [x, z, rot] of [[-132, 118, -0.65], [152, 110, 0.82]] as const) {
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0xfff1c4,
+    transparent: true,
+    opacity: 0.018,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  for (const [x, z, rot] of [
+    [-132, 118, -0.65],
+    [152, 110, 0.82],
+  ] as const) {
     const tower = new THREE.Mesh(
       new THREE.CylinderGeometry(0.7, 1.1, 5.5, 8),
-      new THREE.MeshStandardMaterial({ color: 0x2b3533, roughness: 0.76, metalness: 0.14 }),
+      new THREE.MeshStandardMaterial({
+        color: 0x2b3533,
+        roughness: 0.76,
+        metalness: 0.14,
+      }),
     );
     tower.position.set(x, 2.75, z);
-    const beam = new THREE.Mesh(new THREE.ConeGeometry(10, 110, 4, 1, true), beamMat);
+    const beam = new THREE.Mesh(
+      new THREE.ConeGeometry(10, 110, 4, 1, true),
+      beamMat,
+    );
     beam.position.set(x, 28, z);
     beam.rotation.x = Math.PI * 0.5;
     beam.rotation.z = rot;
@@ -687,9 +988,21 @@ function makeSearchlightFan(): THREE.Group {
 
 function makeBeaconMasts(): THREE.Group {
   const g = new THREE.Group();
-  const mastMat = new THREE.LineBasicMaterial({ color: 0xb9d6ca, transparent: true, opacity: 0.46 });
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0xd7ad55, transparent: true, opacity: 0.86 });
-  for (const [x, z, h] of [[-120, 88, 34], [112, -96, 28], [142, 132, 42]] as const) {
+  const mastMat = new THREE.LineBasicMaterial({
+    color: 0xb9d6ca,
+    transparent: true,
+    opacity: 0.46,
+  });
+  const lightMat = new THREE.MeshBasicMaterial({
+    color: 0xd7ad55,
+    transparent: true,
+    opacity: 0.86,
+  });
+  for (const [x, z, h] of [
+    [-120, 88, 34],
+    [112, -96, 28],
+    [142, 132, 42],
+  ] as const) {
     const mast = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(x, 0, z),
@@ -728,7 +1041,10 @@ function makeTreeLine(): THREE.Group {
   const dummy = new THREE.Object3D();
   for (let i = 0; i < 90; i++) {
     const side = i % 3;
-    const x = side === 0 ? -260 + rng() * 520 : (rng() < 0.5 ? -250 : 250) + (rng() - 0.5) * 16;
+    const x =
+      side === 0
+        ? -260 + rng() * 520
+        : (rng() < 0.5 ? -250 : 250) + (rng() - 0.5) * 16;
     const z = side === 0 ? 210 + (rng() - 0.5) * 34 : -180 + rng() * 370;
     const scale = 0.65 + rng() * 0.72;
     dummy.position.set(x, 0.7 * scale, z);
@@ -750,8 +1066,16 @@ function makeTreeLine(): THREE.Group {
 
 function makeTerrain(): THREE.Group {
   const g = new THREE.Group();
-  const ridgeMat = new THREE.MeshStandardMaterial({ color: 0x69775b, roughness: 0.98, metalness: 0.01 });
-  const ridgeLineMat = new THREE.LineBasicMaterial({ color: 0x9aa894, transparent: true, opacity: 0.34 });
+  const ridgeMat = new THREE.MeshStandardMaterial({
+    color: 0x69775b,
+    roughness: 0.98,
+    metalness: 0.01,
+  });
+  const ridgeLineMat = new THREE.LineBasicMaterial({
+    color: 0x9aa894,
+    transparent: true,
+    opacity: 0.34,
+  });
   const rng = mulberry32(1247);
   for (let band = 0; band < 4; band++) {
     const z = -230 + band * 58;
@@ -763,14 +1087,19 @@ function makeTerrain(): THREE.Group {
       points.push(new THREE.Vector3(x, y, z + Math.sin(i * 0.85 + band) * 18));
     }
     points.push(new THREE.Vector3(290, -0.02, z + 55));
-    const shape = new THREE.Shape(points.map((p) => new THREE.Vector2(p.x, p.z)));
+    const shape = new THREE.Shape(
+      points.map((p) => new THREE.Vector2(p.x, p.z)),
+    );
     const geo = new THREE.ShapeGeometry(shape);
     const mesh = new THREE.Mesh(geo, ridgeMat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = -0.12 - band * 0.01;
     mesh.renderOrder = -4;
     g.add(mesh);
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points.slice(1, -1)), ridgeLineMat);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points.slice(1, -1)),
+      ridgeLineMat,
+    );
     g.add(line);
   }
   return g;
@@ -779,16 +1108,19 @@ function makeTerrain(): THREE.Group {
 function mulberry32(seed: number) {
   return () => {
     seed |= 0;
-    seed = seed + 0x6d2b79f5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
 function makeVectorLine(color: number, opacity: number): THREE.Line {
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(new Float32Array(6), 3),
+  );
   return new THREE.Line(
     geometry,
     new THREE.LineBasicMaterial({ color, transparent: true, opacity }),
@@ -797,12 +1129,34 @@ function makeVectorLine(color: number, opacity: number): THREE.Line {
 
 function makeDrone(): THREE.Group {
   const g = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf2eadc, roughness: 0.42, metalness: 0.32 });
-  const accentMat = new THREE.MeshStandardMaterial({ color: 0xd99b38, roughness: 0.46, metalness: 0.16 });
-  const rotorMat = new THREE.MeshStandardMaterial({ color: 0x121716, roughness: 0.5, metalness: 0.28 });
-  const bladeMat = new THREE.MeshBasicMaterial({ color: 0xb8fff0, transparent: true, opacity: 0.22, depthWrite: false });
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0xf2eadc,
+    roughness: 0.42,
+    metalness: 0.32,
+  });
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: 0xd99b38,
+    roughness: 0.46,
+    metalness: 0.16,
+  });
+  const rotorMat = new THREE.MeshStandardMaterial({
+    color: 0x121716,
+    roughness: 0.5,
+    metalness: 0.28,
+  });
+  const bladeMat = new THREE.MeshBasicMaterial({
+    color: 0xb8fff0,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+  });
   const lightMat = new THREE.MeshBasicMaterial({ color: 0x6fd8c5 });
-  const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false });
+  const shadowMat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+  });
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.75, 2.2), bodyMat);
   g.add(body);
@@ -821,10 +1175,16 @@ function makeDrone(): THREE.Group {
 
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      const rotor = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 0.05, 32), rotorMat);
+      const rotor = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.25, 1.25, 0.05, 32),
+        rotorMat,
+      );
       rotor.position.set(sx * 3.3, 0.18, sz * 3.3);
       rotor.scale.z = 0.32;
-      const blade = new THREE.Mesh(new THREE.CircleGeometry(1.45, 36), bladeMat);
+      const blade = new THREE.Mesh(
+        new THREE.CircleGeometry(1.45, 36),
+        bladeMat,
+      );
       blade.rotation.x = -Math.PI / 2;
       blade.position.copy(rotor.position);
       blade.position.y += 0.05;
@@ -833,9 +1193,15 @@ function makeDrone(): THREE.Group {
     }
   }
 
-  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), lightMat);
+  const beacon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 12, 8),
+    lightMat,
+  );
   beacon.position.set(-1.75, 0.54, 0);
-  const softShadow = new THREE.Mesh(new THREE.CircleGeometry(3.6, 40), shadowMat);
+  const softShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(3.6, 40),
+    shadowMat,
+  );
   softShadow.rotation.x = -Math.PI / 2;
   softShadow.position.y = -0.46;
   g.add(beacon, softShadow);
@@ -844,21 +1210,36 @@ function makeDrone(): THREE.Group {
 }
 
 async function loadDefault() {
+  // ?src=<url> deep-links an external Arrow IPC flight (e.g. the SISFRON
+  // track export `/v2/sisfron/tracks/{id}/flight.arrow`); otherwise fall
+  // back to the bundled default flight.
+  const src = new URLSearchParams(window.location.search).get("src");
+  const url = src ?? "/flights/nav-default.arrow";
+  const label = src ?? "public/flights/nav-default.arrow";
   try {
-    const response = await fetch('/flights/nav-default.arrow', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    await loadResponse(response, 'public/flights/nav-default.arrow');
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok)
+      throw new Error(`${response.status} ${response.statusText}`);
+    await loadResponse(response, label);
   } catch (error) {
-    showError('Ainda não há arquivo Arrow padrão. Solte um .arrow ou execute o exportador.', error);
+    showError(
+      src
+        ? `Não foi possível carregar ${label}. Verifique o endpoint e o CORS.`
+        : "Ainda não há arquivo Arrow padrão. Solte um .arrow ou execute o exportador.",
+      error,
+    );
   }
 }
 
 async function loadResponse(response: Response, label: string) {
   const bytes = await readResponseBytes(response, (loaded, total) => {
-    const pct = total ? ` · ${Math.round((loaded / total) * 100)}%` : '';
+    const pct = total ? ` · ${Math.round((loaded / total) * 100)}%` : "";
     stats.textContent = `${label}\ncarregando ${(loaded / 1_048_576).toFixed(1)} MB${pct}`;
   });
-  loadBuffer(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), label);
+  loadBuffer(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    label,
+  );
 }
 
 function loadBuffer(buffer: ArrayBuffer, label: string) {
@@ -875,7 +1256,7 @@ async function readResponseBytes(
   response: Response,
   onProgress: (loaded: number, total: number | null) => void,
 ) {
-  const total = Number(response.headers.get('content-length')) || null;
+  const total = Number(response.headers.get("content-length")) || null;
   const reader = response.body?.getReader();
   if (!reader) {
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -903,7 +1284,11 @@ async function readResponseBytes(
   return out;
 }
 
-function columnsFromTable(table: Table, label: string, bytes: number): FlightColumns {
+function columnsFromTable(
+  table: Table,
+  label: string,
+  bytes: number,
+): FlightColumns {
   const f32 = (name: string) => {
     const col = table.getChild(name);
     if (!col) throw new Error(`missing Arrow column ${name}`);
@@ -914,28 +1299,29 @@ function columnsFromTable(table: Table, label: string, bytes: number): FlightCol
     if (!col) throw new Error(`missing Arrow column ${name}`);
     return vectorValues(col, Float64Array, name);
   };
-  const t = f64('t');
-  if (t.length < 2) throw new Error('O voo Arrow precisa de pelo menos duas linhas');
-  const px = f32('px');
-  const py = f32('py');
-  const pz = f32('pz');
+  const t = f64("t");
+  if (t.length < 2)
+    throw new Error("O voo Arrow precisa de pelo menos duas linhas");
+  const px = f32("px");
+  const py = f32("py");
+  const pz = f32("pz");
   const bounds = computeBounds(px, py, pz);
   const columns = {
     label,
     bytes,
     t,
-    ax: f32('ax'),
-    ay: f32('ay'),
-    az: f32('az'),
+    ax: f32("ax"),
+    ay: f32("ay"),
+    az: f32("az"),
     px,
     py,
     pz,
-    vx: f32('vx'),
-    vy: f32('vy'),
-    vz: f32('vz'),
-    gx: table.getChild('gx') ? f32('gx') : undefined,
-    gy: table.getChild('gy') ? f32('gy') : undefined,
-    gz: table.getChild('gz') ? f32('gz') : undefined,
+    vx: f32("vx"),
+    vy: f32("vy"),
+    vz: f32("vz"),
+    gx: table.getChild("gx") ? f32("gx") : undefined,
+    gy: table.getChild("gy") ? f32("gy") : undefined,
+    gz: table.getChild("gz") ? f32("gz") : undefined,
     length: t.length,
     duration: t[t.length - 1] - t[0],
     bounds,
@@ -945,7 +1331,9 @@ function columnsFromTable(table: Table, label: string, bytes: number): FlightCol
 
 function vectorValues<T extends Float32Array | Float64Array>(
   vector: Vector,
-  ctor: { new(buffer: ArrayBufferLike, byteOffset: number, length: number): T },
+  ctor: {
+    new (buffer: ArrayBufferLike, byteOffset: number, length: number): T;
+  },
   name: string,
 ): T {
   if (vector.data.length === 1) {
@@ -989,7 +1377,7 @@ function computeBounds(px: Float32Array, py: Float32Array, pz: Float32Array) {
 }
 
 function updateStats(flight: FlightColumns) {
-  stats.innerHTML = `${flight.label}<br>${flight.length.toLocaleString('pt-BR')} linhas · ${flight.duration.toFixed(1)} s · ${(flight.bytes / 1_048_576).toFixed(1)} MB · Arrow IPC`;
+  stats.innerHTML = `${flight.label}<br>${flight.length.toLocaleString("pt-BR")} linhas · ${flight.duration.toFixed(1)} s · ${(flight.bytes / 1_048_576).toFixed(1)} MB · Arrow IPC`;
 }
 
 function showError(message: string, error?: unknown) {
@@ -1030,26 +1418,48 @@ function buildTrail(flight: FlightColumns) {
   let j = 0;
   let cj = 0;
   for (let i = 0; i < flight.length; i += step) {
-    const v = smoothedScenePoint(flight.px, flight.py, flight.pz, i, smoothRadius);
+    const v = smoothedScenePoint(
+      flight.px,
+      flight.py,
+      flight.pz,
+      i,
+      smoothRadius,
+    );
     positions[j++] = v.x;
     positions[j++] = v.y;
     positions[j++] = v.z;
-    tmp.copy(cStart).lerp(cEnd, flight.length > 1 ? i / (flight.length - 1) : 0);
+    tmp
+      .copy(cStart)
+      .lerp(cEnd, flight.length > 1 ? i / (flight.length - 1) : 0);
     colors[cj++] = tmp.r;
     colors[cj++] = tmp.g;
     colors[cj++] = tmp.b;
   }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, j), 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors.subarray(0, cj), 3));
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions.subarray(0, j), 3),
+  );
+  geometry.setAttribute(
+    "color",
+    new THREE.BufferAttribute(colors.subarray(0, cj), 3),
+  );
   const glowGeometry = geometry.clone();
   trailGlow = new THREE.Line(
     glowGeometry,
-    new THREE.LineBasicMaterial({ color: 0xd7ad55, transparent: true, opacity: 0.08 }),
+    new THREE.LineBasicMaterial({
+      color: 0xd7ad55,
+      transparent: true,
+      opacity: 0.08,
+    }),
   );
   trail = new THREE.Line(
     geometry,
-    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.68 }),
+    new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.68,
+    }),
   );
   world.add(trailGlow);
   world.add(trail);
@@ -1061,27 +1471,46 @@ function buildTrail(flight: FlightColumns) {
   endMarker = makeMarker(0xd7ad55);
   startMarker.position.copy(toScene(flight.px[0], flight.py[0], flight.pz[0]));
   const last = flight.length - 1;
-  endMarker.position.copy(toScene(flight.px[last], flight.py[last], flight.pz[last]));
+  endMarker.position.copy(
+    toScene(flight.px[last], flight.py[last], flight.pz[last]),
+  );
   world.add(startMarker, endMarker);
   applyLayerVisibility();
 }
 
-function buildTruthTrail(flight: FlightColumns, step: number, smoothRadius: number): THREE.Line | null {
+function buildTruthTrail(
+  flight: FlightColumns,
+  step: number,
+  smoothRadius: number,
+): THREE.Line | null {
   if (!flight.gx || !flight.gy || !flight.gz) return null;
   const points = Math.ceil(flight.length / step);
   const positions = new Float32Array(points * 3);
   let j = 0;
   for (let i = 0; i < flight.length; i += step) {
-    const v = smoothedScenePoint(flight.gx, flight.gy, flight.gz, i, smoothRadius);
+    const v = smoothedScenePoint(
+      flight.gx,
+      flight.gy,
+      flight.gz,
+      i,
+      smoothRadius,
+    );
     positions[j++] = v.x;
     positions[j++] = v.y + 0.14;
     positions[j++] = v.z;
   }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, j), 3));
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions.subarray(0, j), 3),
+  );
   return new THREE.Line(
     geometry,
-    new THREE.LineBasicMaterial({ color: 0xdbe8d2, transparent: true, opacity: 0.24 }),
+    new THREE.LineBasicMaterial({
+      color: 0xdbe8d2,
+      transparent: true,
+      opacity: 0.24,
+    }),
   );
 }
 
@@ -1115,10 +1544,17 @@ function sampleEvery(values: Float32Array, step: number) {
 
 function makeMarker(color: number): THREE.Object3D {
   const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.82 });
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.82,
+  });
   const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.75, 40), mat);
   ring.rotation.x = -Math.PI / 2;
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4, 8), mat);
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 4, 8),
+    mat,
+  );
   post.position.y = 2;
   g.add(ring, post);
   return g;
@@ -1133,7 +1569,7 @@ function applyLayerVisibility() {
   velocityVector.visible = layerState.vectors;
   accelVector.visible = layerState.vectors;
   altitudeLine.visible = layerState.vectors;
-  instrument.style.opacity = layerState.vectors ? '' : '0';
+  instrument.style.opacity = layerState.vectors ? "" : "0";
   airspace.visible = layerState.airspace;
   ghost.visible = layerState.airspace;
   scenery.visible = layerState.range;
@@ -1141,25 +1577,28 @@ function applyLayerVisibility() {
 
 function updateCameraButtons() {
   for (const button of cameraButtons) {
-    button.setAttribute('aria-pressed', String(button.dataset.camera === cameraPreset));
+    button.setAttribute(
+      "aria-pressed",
+      String(button.dataset.camera === cameraPreset),
+    );
   }
 }
 
 function updateLayerButtons() {
   for (const button of layerButtons) {
     const layer = button.dataset.layer as LayerName | undefined;
-    if (layer) button.setAttribute('aria-pressed', String(layerState[layer]));
+    if (layer) button.setAttribute("aria-pressed", String(layerState[layer]));
   }
 }
 
 function updatePlaybackRate() {
-  playbackRate.textContent = `${Number(speedInput.value).toFixed(2).replace(/\.00$/, '')}x`;
+  playbackRate.textContent = `${Number(speedInput.value).toFixed(2).replace(/\.00$/, "")}x`;
 }
 
 function updatePresentationMode() {
-  app.classList.toggle('presentation', presentation);
-  presentationMode.setAttribute('aria-pressed', String(presentation));
-  presentationMode.textContent = presentation ? 'Sair' : 'Apresentação';
+  app.classList.toggle("presentation", presentation);
+  presentationMode.setAttribute("aria-pressed", String(presentation));
+  presentationMode.textContent = presentation ? "Sair" : "Apresentação";
 }
 
 function fitWorld(flight: FlightColumns) {
@@ -1191,7 +1630,9 @@ function sampleIndex(flight: FlightColumns, time: number) {
 function updateFlight(dt: number) {
   if (!current) return;
   if (playing) {
-    cursor = (cursor + dt * Number(speedInput.value)) % Math.max(0.001, current.duration);
+    cursor =
+      (cursor + dt * Number(speedInput.value)) %
+      Math.max(0.001, current.duration);
     scrubInput.value = String(cursor / current.duration);
   } else {
     cursor = Number(scrubInput.value) * current.duration;
@@ -1206,23 +1647,38 @@ function updateFlight(dt: number) {
   if (vel.lengthSq() > 0.0001) {
     const yaw = Math.atan2(vel.x, vel.z);
     drone.rotation.set(0, yaw, 0);
-    drone.rotation.z = THREE.MathUtils.clamp(-current.ax[i] * 0.05, -0.45, 0.45);
+    drone.rotation.z = THREE.MathUtils.clamp(
+      -current.ax[i] * 0.05,
+      -0.45,
+      0.45,
+    );
     drone.rotation.x = THREE.MathUtils.clamp(current.ay[i] * 0.05, -0.35, 0.35);
   }
   const accel = new THREE.Vector3(current.ax[i], current.az[i], -current.ay[i]);
   // Vector display lengths scale with the view so they read at any flight size.
   updateVectorLine(velocityVector, p, vel, viewScale * 0.9);
   updateVectorLine(accelVector, p, accel, viewScale * 0.5);
-  updateVectorLine(altitudeLine, new THREE.Vector3(p.x, 0.03, p.z), new THREE.Vector3(0, p.y, 0), 1);
+  updateVectorLine(
+    altitudeLine,
+    new THREE.Vector3(p.x, 0.03, p.z),
+    new THREE.Vector3(0, p.y, 0),
+    1,
+  );
   for (const blade of rotorBlades) blade.rotation.z += dt * 42;
   updateInstrument(vel, accel);
 
-  if (cameraPreset === 'chase') {
-    const back = vel.lengthSq() > 0.001 ? vel.clone().normalize().multiplyScalar(-58) : new THREE.Vector3(-46, 0, -46);
-    const wanted = p.clone().add(back).add(new THREE.Vector3(0, 28, 0));
+  if (cameraPreset === "chase") {
+    const back =
+      vel.lengthSq() > 0.001
+        ? vel.clone().normalize().multiplyScalar(-58)
+        : new THREE.Vector3(-46, 0, -46);
+    const wanted = p
+      .clone()
+      .add(back)
+      .add(new THREE.Vector3(0, 28, 0));
     camera.position.lerp(wanted, 0.045);
     camera.lookAt(p.x, p.y + 4.0, p.z);
-  } else if (cameraPreset === 'orbit') {
+  } else if (cameraPreset === "orbit") {
     const target = p.clone().add(new THREE.Vector3(0, 3.5, 0));
     const cp = Math.cos(orbitPitch);
     const offset = new THREE.Vector3(
@@ -1232,7 +1688,7 @@ function updateFlight(dt: number) {
     );
     camera.position.lerp(target.clone().add(offset), 0.12);
     camera.lookAt(target);
-  } else if (cameraPreset === 'top') {
+  } else if (cameraPreset === "top") {
     const target = p.clone();
     const height = THREE.MathUtils.clamp(orbitDistance * 1.45, 95, 520);
     camera.position.lerp(new THREE.Vector3(p.x, height, p.z + 0.01), 0.09);
@@ -1255,63 +1711,83 @@ function updateFlight(dt: number) {
 
 function updateBriefing(flight: FlightColumns, i: number, vel: THREE.Vector3) {
   const progress = cursor / Math.max(0.001, flight.duration);
-  const phase = progress < 0.08
-    ? 'acquisition'
-    : progress < 0.68
-      ? 'tracking'
-      : progress < 0.9
-        ? 'assessment'
-        : 'recovery';
+  const phase =
+    progress < 0.08
+      ? "acquisition"
+      : progress < 0.68
+        ? "tracking"
+        : progress < 0.9
+          ? "assessment"
+          : "recovery";
   const speed = Math.hypot(flight.vx[i], flight.vy[i], flight.vz[i]);
-  const drift = flight.gx && flight.gy && flight.gz
-    ? Math.hypot(flight.px[i] - flight.gx[i], flight.py[i] - flight.gy[i], flight.pz[i] - flight.gz[i])
-    : null;
-  const link = THREE.MathUtils.clamp(99 - accelNoiseScore(flight, i) * 3.8 - progress * 4, 86, 99);
+  const drift =
+    flight.gx && flight.gy && flight.gz
+      ? Math.hypot(
+          flight.px[i] - flight.gx[i],
+          flight.py[i] - flight.gy[i],
+          flight.pz[i] - flight.gz[i],
+        )
+      : null;
+  const link = THREE.MathUtils.clamp(
+    99 - accelNoiseScore(flight, i) * 3.8 - progress * 4,
+    86,
+    99,
+  );
   hudPhase.textContent = phaseLabel(phase);
   hudSpeed.textContent = `${speed.toFixed(1)} m/s`;
   hudAlt.textContent = `${flight.pz[i].toFixed(1)} m`;
-  hudDrift.textContent = drift == null ? 'sem verdade' : `${drift.toFixed(1)} m`;
+  hudDrift.textContent =
+    drift == null ? "sem verdade" : `${drift.toFixed(1)} m`;
   hudLink.textContent = `${Math.round(link)}%`;
   missionPhase.textContent = `${phaseLabel(phase)}: ${missionCopy(phase)} Câmera ${cameraPresetLabel(cameraPreset)}; camadas visíveis: ${layerSummary()}.`;
-  document.documentElement.style.setProperty('--track-energy', String(0.22 + Math.min(vel.length() / 16, 0.55)));
+  document.documentElement.style.setProperty(
+    "--track-energy",
+    String(0.22 + Math.min(vel.length() / 16, 0.55)),
+  );
 }
 
 function accelNoiseScore(flight: FlightColumns, i: number) {
-  return Math.min(3, Math.hypot(flight.ax[i], flight.ay[i], flight.az[i]) / 9.81);
+  return Math.min(
+    3,
+    Math.hypot(flight.ax[i], flight.ay[i], flight.az[i]) / 9.81,
+  );
 }
 
 function phaseLabel(phase: MissionPhase) {
-  if (phase === 'acquisition') return 'Aquisição';
-  if (phase === 'tracking') return 'Rastreamento';
-  if (phase === 'assessment') return 'Avaliação';
-  return 'Recuperação';
+  if (phase === "acquisition") return "Aquisição";
+  if (phase === "tracking") return "Rastreamento";
+  if (phase === "assessment") return "Avaliação";
+  return "Recuperação";
 }
 
 function missionCopy(phase: MissionPhase) {
-  if (phase === 'acquisition') return 'estabelecer enlace de telemetria e alinhar a solução inercial.';
-  if (phase === 'tracking') return 'monitorar trajetória, vetores de aceleração e camadas de segurança do campo.';
-  if (phase === 'assessment') return 'avaliar o comportamento do erro de navegação contra a verdade disponível.';
-  return 'encerrar o voo, preservar evidências e preparar o pacote da execução.';
+  if (phase === "acquisition")
+    return "estabelecer enlace de telemetria e alinhar a solução inercial.";
+  if (phase === "tracking")
+    return "monitorar trajetória, vetores de aceleração e camadas de segurança do campo.";
+  if (phase === "assessment")
+    return "avaliar o comportamento do erro de navegação contra a verdade disponível.";
+  return "encerrar o voo, preservar evidências e preparar o pacote da execução.";
 }
 
 function cameraPresetLabel(preset: CameraPreset) {
-  if (preset === 'chase') return 'Cauda';
-  if (preset === 'orbit') return 'Órbita';
-  if (preset === 'top') return 'Topo';
-  return 'Comando';
+  if (preset === "chase") return "Cauda";
+  if (preset === "orbit") return "Órbita";
+  if (preset === "top") return "Topo";
+  return "Comando";
 }
 
 function layerSummary() {
   const labels: Record<LayerName, string> = {
-    trajectory: 'trajetória',
-    vectors: 'vetores',
-    airspace: 'espaço aéreo',
-    range: 'campo',
+    trajectory: "trajetória",
+    vectors: "vetores",
+    airspace: "espaço aéreo",
+    range: "campo",
   };
   return (Object.entries(layerState) as [LayerName, boolean][])
     .filter(([, enabled]) => enabled)
     .map(([name]) => labels[name])
-    .join(', ');
+    .join(", ");
 }
 
 function updateGroundShadow(group: THREE.Group, altitude: number) {
@@ -1322,8 +1798,15 @@ function updateGroundShadow(group: THREE.Group, altitude: number) {
   material.opacity = THREE.MathUtils.clamp(0.28 - altitude * 0.006, 0.05, 0.24);
 }
 
-function updateVectorLine(line: THREE.Line, origin: THREE.Vector3, vector: THREE.Vector3, scale: number) {
-  const positions = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+function updateVectorLine(
+  line: THREE.Line,
+  origin: THREE.Vector3,
+  vector: THREE.Vector3,
+  scale: number,
+) {
+  const positions = line.geometry.getAttribute(
+    "position",
+  ) as THREE.BufferAttribute;
   const tip = origin.clone().add(vector.clone().multiplyScalar(scale));
   positions.setXYZ(0, origin.x, origin.y, origin.z);
   positions.setXYZ(1, tip.x, tip.y, tip.z);
@@ -1334,16 +1817,22 @@ function updateInstrument(vel: THREE.Vector3, accel: THREE.Vector3) {
   const speed = vel.length();
   const bank = THREE.MathUtils.clamp(accel.x * 4.5, -24, 24);
   const climb = THREE.MathUtils.clamp(vel.y * 5, -18, 18);
-  instrument.style.setProperty('--bank', `${bank}deg`);
-  instrument.style.setProperty('--climb', `${climb}px`);
-  instrument.style.setProperty('--pulse', String(0.38 + Math.min(speed / 18, 0.42)));
+  instrument.style.setProperty("--bank", `${bank}deg`);
+  instrument.style.setProperty("--climb", `${climb}px`);
+  instrument.style.setProperty(
+    "--pulse",
+    String(0.38 + Math.min(speed / 18, 0.42)),
+  );
 }
 
 function updateScenery(time: number) {
   for (let i = 0; i < animatedScenery.length; i++) {
     const object = animatedScenery[i];
     object.rotation.y += 0.0025 + i * 0.0008;
-    if (object instanceof THREE.Mesh && object.geometry instanceof THREE.ConeGeometry) {
+    if (
+      object instanceof THREE.Mesh &&
+      object.geometry instanceof THREE.ConeGeometry
+    ) {
       object.rotation.z += Math.sin(time * 0.45 + i) * 0.0008;
     }
   }
@@ -1368,13 +1857,13 @@ function loop(now: number) {
   raf = requestAnimationFrame(loop);
 }
 
-window.addEventListener('resize', resize);
-playPause.addEventListener('click', () => {
+window.addEventListener("resize", resize);
+playPause.addEventListener("click", () => {
   playing = !playing;
-  playPause.textContent = playing ? 'Pausar' : 'Retomar';
+  playPause.textContent = playing ? "Pausar" : "Retomar";
 });
 for (const button of cameraButtons) {
-  button.addEventListener('click', () => {
+  button.addEventListener("click", () => {
     const preset = button.dataset.camera as CameraPreset | undefined;
     if (!preset) return;
     cameraPreset = preset;
@@ -1382,7 +1871,7 @@ for (const button of cameraButtons) {
   });
 }
 for (const button of layerButtons) {
-  button.addEventListener('click', () => {
+  button.addEventListener("click", () => {
     const layer = button.dataset.layer as LayerName | undefined;
     if (!layer) return;
     layerState[layer] = !layerState[layer];
@@ -1390,26 +1879,26 @@ for (const button of layerButtons) {
     applyLayerVisibility();
   });
 }
-presentationMode.addEventListener('click', () => {
+presentationMode.addEventListener("click", () => {
   presentation = !presentation;
   updatePresentationMode();
 });
-speedInput.addEventListener('input', updatePlaybackRate);
-scrubInput.addEventListener('input', () => {
+speedInput.addEventListener("input", updatePlaybackRate);
+scrubInput.addEventListener("input", () => {
   playing = false;
-  playPause.textContent = 'Retomar';
+  playPause.textContent = "Retomar";
 });
 
-for (const eventName of ['dragenter', 'dragover']) {
+for (const eventName of ["dragenter", "dragover"]) {
   window.addEventListener(eventName, (event) => {
     event.preventDefault();
-    drop.classList.add('hot');
+    drop.classList.add("hot");
   });
 }
-for (const eventName of ['dragleave', 'drop']) {
-  window.addEventListener(eventName, () => drop.classList.remove('hot'));
+for (const eventName of ["dragleave", "drop"]) {
+  window.addEventListener(eventName, () => drop.classList.remove("hot"));
 }
-window.addEventListener('drop', async (event) => {
+window.addEventListener("drop", async (event) => {
   event.preventDefault();
   const file = event.dataTransfer?.files[0];
   if (!file) return;
@@ -1420,13 +1909,13 @@ window.addEventListener('drop', async (event) => {
   }
 });
 
-canvas.addEventListener('pointerdown', (event) => {
-  if (cameraPreset !== 'orbit') return;
+canvas.addEventListener("pointerdown", (event) => {
+  if (cameraPreset !== "orbit") return;
   pointerDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
   canvas.setPointerCapture(event.pointerId);
 });
 
-canvas.addEventListener('pointermove', (event) => {
+canvas.addEventListener("pointermove", (event) => {
   if (!pointerDrag || pointerDrag.id !== event.pointerId) return;
   const dx = event.clientX - pointerDrag.x;
   const dy = event.clientY - pointerDrag.y;
@@ -1436,17 +1925,25 @@ canvas.addEventListener('pointermove', (event) => {
   orbitPitch = THREE.MathUtils.clamp(orbitPitch + dy * 0.004, 0.12, 1.15);
 });
 
-canvas.addEventListener('pointerup', (event) => {
+canvas.addEventListener("pointerup", (event) => {
   if (pointerDrag?.id === event.pointerId) pointerDrag = null;
 });
 
-canvas.addEventListener('wheel', (event) => {
-  if (cameraPreset !== 'orbit') return;
-  event.preventDefault();
-  orbitDistance = THREE.MathUtils.clamp(orbitDistance * (1 + event.deltaY * 0.001), 24, 900);
-}, { passive: false });
+canvas.addEventListener(
+  "wheel",
+  (event) => {
+    if (cameraPreset !== "orbit") return;
+    event.preventDefault();
+    orbitDistance = THREE.MathUtils.clamp(
+      orbitDistance * (1 + event.deltaY * 0.001),
+      24,
+      900,
+    );
+  },
+  { passive: false },
+);
 
-window.addEventListener('beforeunload', () => cancelAnimationFrame(raf));
+window.addEventListener("beforeunload", () => cancelAnimationFrame(raf));
 
 resize();
 updateCameraButtons();
